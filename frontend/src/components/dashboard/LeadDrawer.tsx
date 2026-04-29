@@ -1,0 +1,140 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Sparkles, Send, Copy, Check } from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+
+export const LeadDrawer = () => {
+  const { selectedLead, setSelectedLead, updateLeadStatus } = useAppStore();
+  const [emailContent, setEmailContent] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Typewriter effect simulation
+  const simulateTypewriter = (text: string) => {
+    setEmailContent("");
+    let i = 0;
+    const interval = setInterval(() => {
+      setEmailContent((prev) => prev + text.charAt(i));
+      i++;
+      if (i >= text.length) clearInterval(interval);
+    }, 10);
+  };
+
+  const handleGenerateEmail = async () => {
+    setIsGenerating(true);
+    // Mocking Gemini response for now
+    setTimeout(() => {
+      const mockEmail = `Hi ${selectedLead?.name},\n\nI noticed ${selectedLead?.company} is doing some incredible work in your industry. I'd love to chat about how SalesAgent AI can help you automate your outreach and scale your growth.\n\nBest,\nYour Sales Team`;
+      simulateTypewriter(mockEmail);
+      setIsGenerating(false);
+    }, 1500);
+  };
+
+  const handleSendEmail = async () => {
+    setIsSending(true);
+    setTimeout(() => {
+      updateLeadStatus(selectedLead!.id, "Emailed");
+      setIsSending(false);
+      setSelectedLead(null);
+    }, 1000);
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(emailContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!selectedLead) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[60] flex justify-end">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setSelectedLead(null)}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+        
+        <motion.div
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="relative w-full max-w-xl h-full bg-zinc-950 border-l border-white/10 p-8 shadow-2xl flex flex-col"
+        >
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-white">{selectedLead.name}</h2>
+              <p className="text-white/40">{selectedLead.company} • {selectedLead.email}</p>
+            </div>
+            <button 
+              onClick={() => setSelectedLead(null)}
+              className="p-2 hover:bg-white/5 rounded-full text-white/40 hover:text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-6 overflow-y-auto pr-2">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-white/40">AI Outreach</h3>
+                <button
+                  onClick={handleGenerateEmail}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 transition-colors text-sm font-medium"
+                >
+                  <Sparkles size={16} />
+                  {isGenerating ? "Analyzing Lead..." : "Generate Email"}
+                </button>
+              </div>
+
+              <div className="glass rounded-2xl p-6 min-h-[300px] relative group">
+                {emailContent ? (
+                  <div className="whitespace-pre-wrap text-white/80 leading-relaxed font-mono text-sm">
+                    {emailContent}
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-12">
+                    <div className="p-4 rounded-full bg-white/5 text-white/20">
+                      <Mail size={48} />
+                    </div>
+                    <p className="text-white/40 text-sm max-w-[200px]">
+                      Click generate to write a hyper-personalized email.
+                    </p>
+                  </div>
+                )}
+                
+                {emailContent && (
+                  <button 
+                    onClick={copyToClipboard}
+                    className="absolute top-4 right-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-white/10 flex gap-4">
+            <button
+              onClick={handleSendEmail}
+              disabled={!emailContent || isSending}
+              className="flex-1 py-4 rounded-xl bg-white text-black font-bold flex items-center justify-center gap-2 hover:bg-white/90 disabled:opacity-50 transition-colors"
+            >
+              <Send size={18} />
+              {isSending ? "Sending..." : "Send via Resend"}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+};

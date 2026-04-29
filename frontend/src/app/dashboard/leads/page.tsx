@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import Papa from "papaparse";
 import { useAppStore } from "@/store/useAppStore";
+import { LeadDrawer } from "@/components/dashboard/LeadDrawer";
 
 export default function LeadsPage() {
-  const { leads, addLead } = useAppStore();
+  const { leads, addLead, setSelectedLead } = useAppStore();
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -104,7 +105,8 @@ export default function LeadsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="group hover:bg-white/[0.02] transition-colors"
+                    onClick={() => setSelectedLead(lead)}
+                    className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
                   >
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -145,6 +147,7 @@ export default function LeadsPage() {
           )}
         </div>
       </div>
+      <LeadDrawer />
     </div>
   );
 }
