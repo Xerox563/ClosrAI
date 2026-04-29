@@ -52,7 +52,10 @@ body {
   }
 
   .neon-card {
-    @apply glass-card transition-all duration-500;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 500ms;
     animation: neon-pulse 4s infinite ease-in-out;
   }
 
