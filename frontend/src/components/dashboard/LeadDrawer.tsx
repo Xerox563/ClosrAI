@@ -50,11 +50,22 @@ export const LeadDrawer = () => {
   const handleSendEmail = async () => {
     if (!selectedLead || !emailContent) return;
     setIsSending(true);
+    
+    // Clean up content: Remove "Subject: ..." if AI included it
+    let cleanContent = emailContent;
+    let subject = `Partnership opportunity for ${selectedLead.company}`;
+    
+    if (emailContent.toLowerCase().startsWith("subject:")) {
+      const parts = emailContent.split("\n");
+      subject = parts[0].replace(/subject:/i, "").trim();
+      cleanContent = parts.slice(1).join("\n").trim();
+    }
+
     try {
       await axios.post(`${API_URL}/send-email`, {
         to_email: selectedLead.email,
-        subject: `Partnership opportunity for ${selectedLead.company}`,
-        content: emailContent
+        subject: subject,
+        content: cleanContent
       });
       updateLeadStatus(selectedLead.id, "Emailed");
       

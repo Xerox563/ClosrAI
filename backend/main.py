@@ -69,6 +69,9 @@ async def generate_email(request: EmailRequest):
     Company: {request.lead.company}
     
     Rules:
+    - DO NOT include a subject line.
+    - DO NOT use placeholders like [Your Name] or [Your Company].
+    - Use "SalesAgent AI" as the company name.
     - Be professional but friendly.
     - Keep it under 100 words.
     - Mention their company specifically.
@@ -115,17 +118,35 @@ async def generate_email(request: EmailRequest):
 
 @app.post("/send-email")
 async def send_email(request: SendEmailRequest):
+    if not os.getenv("RESEND_API_KEY"):
+        raise HTTPException(status_code=500, detail="Resend API Key is missing. Please add it to backend/.env")
+        
     try:
+        # Use a more descriptive sender
+        from_email = "SalesAgent AI <onboarding@resend.dev>"
+        
         params = {
-            "from": "SalesAgent AI <onboarding@resend.dev>", # Update with verified domain
+            "from": from_email,
             "to": [request.to_email],
             "subject": request.subject,
             "text": request.content,
         }
-        email = resend.Emails.send(params)
-        return {"id": email["id"]}
+        
+        try:
+            email = resend.Emails.send(params)
+            return {"id": email.get("id")}
+        except Exception as resend_err:
+            error_detail = str(resend_err)
+            print(f"Resend SDK Error: {error_detail}")
+            if "unauthorized" in error_detail.lower():
+                error_detail = "Invalid Resend API Key."
+            elif "restriction" in error_detail.lower() or "verify" in error_detail.lower():
+                error_detail = "Resend is in Testing Mode. You can only send emails to your own registered email address (amitdevprod@gmail.com) until you verify a domain."
+            raise Exception(error_detail)
+            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error sending email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Send Error: {str(e)}")
 
 @app.get("/")
 async def root():
