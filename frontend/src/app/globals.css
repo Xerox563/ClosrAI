@@ -20,6 +20,16 @@
   }
 }
 
+@keyframes grid-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.1), inset 0 0 10px rgba(59, 130, 246, 0.05); }
+  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.2), inset 0 0 20px rgba(59, 130, 246, 0.1); }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -41,6 +51,17 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
+  .neon-card {
+    @apply glass-card transition-all duration-500;
+    animation: neon-pulse 4s infinite ease-in-out;
+  }
+
+  .neon-card:hover {
+    animation: none;
+    box-shadow: 0 0 50px rgba(59, 130, 246, 0.4), inset 0 0 30px rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+
   .text-gradient {
     background: linear-gradient(to bottom, #ffffff 0%, rgba(255, 255, 255, 0.6) 100%);
     -webkit-background-clip: text;
@@ -49,9 +70,22 @@ body {
 
   .grid-pattern {
     background-image: 
-      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.1) 1px, transparent 1px);
     background-size: 50px 50px;
+    position: relative;
+  }
+
+  .grid-pattern::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 0%, black 90%);
+    pointer-events: none;
+  }
+
+  .grid-glow {
+    animation: grid-glow 4s infinite ease-in-out;
   }
 
   .glow {

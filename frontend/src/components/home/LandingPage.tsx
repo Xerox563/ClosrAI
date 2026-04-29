@@ -126,7 +126,7 @@ export const LandingPage = () => {
   return (
     <div ref={containerRef} className="bg-black text-white selection:bg-blue-500/30">
       {/* Hero Section */}
-      <section className="hero-section relative h-screen flex items-center justify-center overflow-hidden grid-pattern">
+      <section className="hero-section relative h-screen flex items-center justify-center overflow-hidden grid-pattern grid-glow">
         <ParticleField />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/50 to-black" />
         
@@ -176,7 +176,8 @@ export const LandingPage = () => {
       </section>
 
       {/* Features & Breakdown Section */}
-      <section className="reveal-section py-32 px-6">
+      <section className="reveal-section py-32 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern grid-glow -z-10" />
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
             <h2 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">Full Functionality Breakdown</h2>
@@ -187,7 +188,7 @@ export const LandingPage = () => {
             {/* 1. Lead Generation */}
             <motion.div 
               whileHover={{ y: -10 }}
-              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+              className="neon-card p-10 rounded-[2.5rem] group relative overflow-hidden"
             >
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
@@ -234,7 +235,7 @@ export const LandingPage = () => {
             {/* 2. Email Automation */}
             <motion.div 
               whileHover={{ y: -10 }}
-              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+              className="neon-card p-10 rounded-[2.5rem] group relative overflow-hidden"
             >
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-4 rounded-2xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition-transform">
@@ -281,7 +282,7 @@ export const LandingPage = () => {
             {/* 3. Follow-up Sequences */}
             <motion.div 
               whileHover={{ y: -10 }}
-              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+              className="neon-card p-10 rounded-[2.5rem] group relative overflow-hidden"
             >
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
@@ -329,7 +330,7 @@ export const LandingPage = () => {
             {/* 4. Meeting Booking */}
             <motion.div 
               whileHover={{ y: -10 }}
-              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+              className="neon-card p-10 rounded-[2.5rem] group relative overflow-hidden"
             >
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-4 rounded-2xl bg-orange-500/10 text-orange-400 group-hover:scale-110 transition-transform">
@@ -371,8 +372,9 @@ export const LandingPage = () => {
       </section>
 
       {/* Campaign & Stats Visualization */}
-      <section className="reveal-section py-32 px-6">
-        <div className="max-w-7xl mx-auto glass-card rounded-[3rem] p-12 md:p-24 relative overflow-hidden">
+      <section className="reveal-section py-32 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern grid-glow opacity-50 -z-10" />
+        <div className="max-w-7xl mx-auto neon-card rounded-[3rem] p-12 md:p-24 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-1/2 h-full bg-blue-500/5 blur-[120px] rounded-full translate-x-1/2" />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -429,53 +431,54 @@ export const LandingPage = () => {
       </section>
 
       {/* How it works (n8n style flow) */}
-      <section className="reveal-section py-32 px-6 bg-zinc-950/50 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl bg-blue-500/5 blur-[150px] pointer-events-none" />
-        
-        <div className="max-w-7xl mx-auto relative">
-          <div className="text-center mb-24">
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">Autonomous Intelligence.</h2>
-            <p className="text-white/40 text-xl max-w-2xl mx-auto">The engine under the hood that drives your growth.</p>
-          </div>
-
-          <div className="flex flex-col items-center gap-12">
-            <CircuitIcon />
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 w-full relative">
-              <div className="hidden md:block absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-y-1/2" />
-              
-              {[
-                { 
-                  step: "DATA", 
-                  title: "Lead Acquisition", 
-                  desc: "Raw signals pulled from premium providers like Apollo and LinkedIn.",
-                  icon: UsersIcon
-                },
-                { 
-                  step: "BRAIN", 
-                  title: "AI Synthesis", 
-                  desc: "Gemini 2.0 reasons over lead data to find the perfect value hook.",
-                  icon: Zap
-                },
-                { 
-                  step: "VOICE", 
-                  title: "Human Delivery", 
-                  desc: "Hyper-personalized messages sent at the perfect time for replies.",
-                  icon: Mail
-                }
-              ].map((item, i) => (
-                <div key={i} className="relative z-10 glass-card p-10 rounded-[2.5rem] hover:glow transition-all duration-500 group">
-                  <div className="text-xs font-black tracking-widest text-blue-500 mb-8 opacity-50 group-hover:opacity-100 transition-opacity">
-                    {item.step}
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
-                  <p className="text-white/40 leading-relaxed text-lg">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+       <section className="reveal-section py-32 px-6 bg-zinc-950/50 relative overflow-hidden">
+         <div className="absolute inset-0 grid-pattern grid-glow opacity-30 -z-10" />
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl bg-blue-500/5 blur-[150px] pointer-events-none" />
+         
+         <div className="max-w-7xl mx-auto relative">
+           <div className="text-center mb-24">
+             <h2 className="text-4xl md:text-6xl font-bold mb-6">Autonomous Intelligence.</h2>
+             <p className="text-white/40 text-xl max-w-2xl mx-auto">The engine under the hood that drives your growth.</p>
+           </div>
+ 
+           <div className="flex flex-col items-center gap-12">
+             <CircuitIcon />
+             
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 w-full relative">
+               <div className="hidden md:block absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-y-1/2" />
+               
+               {[
+                 { 
+                   step: "DATA", 
+                   title: "Lead Acquisition", 
+                   desc: "Raw signals pulled from premium providers like Apollo and LinkedIn.",
+                   icon: UsersIcon
+                 },
+                 { 
+                   step: "BRAIN", 
+                   title: "AI Synthesis", 
+                   desc: "Gemini 2.0 reasons over lead data to find the perfect value hook.",
+                   icon: Zap
+                 },
+                 { 
+                   step: "VOICE", 
+                   title: "Human Delivery", 
+                   desc: "Hyper-personalized messages sent at the perfect time for replies.",
+                   icon: Mail
+                 }
+               ].map((item, i) => (
+                 <div key={i} className="relative z-10 neon-card p-10 rounded-[2.5rem] group transition-all duration-500">
+                   <div className="text-xs font-black tracking-widest text-blue-500 mb-8 opacity-50 group-hover:opacity-100 transition-opacity">
+                     {item.step}
+                   </div>
+                   <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
+                   <p className="text-white/40 leading-relaxed text-lg">{item.desc}</p>
+                 </div>
+               ))}
+             </div>
+           </div>
+         </div>
+       </section>
 
       {/* Stats Section */}
       <section ref={statsRef} className="reveal-section py-32 border-y border-white/5">
