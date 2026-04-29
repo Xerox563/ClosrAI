@@ -5,20 +5,29 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, EmailStr
 import google.generativeai as genai
 import resend
+from openai import OpenAI
 
 load_dotenv()
 
 # Configure API Keys
 gemini_key = os.getenv("GEMINI_API_KEY")
 resend_key = os.getenv("RESEND_API_KEY")
+openrouter_key = os.getenv("OPENROUTER_API_KEY")
 
-if not gemini_key:
-    print("⚠️ WARNING: GEMINI_API_KEY not found in environment variables")
+if not gemini_key and not openrouter_key:
+    print("⚠️ WARNING: No AI API Key (GEMINI or OPENROUTER) found in environment variables")
 if not resend_key:
     print("⚠️ WARNING: RESEND_API_KEY not found in environment variables")
 
+# Initialize Clients
 genai.configure(api_key=gemini_key)
 resend.api_key = resend_key
+
+# OpenRouter Client
+client = OpenAI(
+  base_url="https://openrouter.ai/api/v1",
+  api_key=openrouter_key,
+)
 
 app = FastAPI(
     title="SalesAgent AI API",
@@ -51,33 +60,58 @@ class SendEmailRequest(BaseModel):
 
 @app.post("/generate-email")
 async def generate_email(request: EmailRequest):
-    if not os.getenv("GEMINI_API_KEY"):
-        raise HTTPException(status_code=500, detail="Gemini API Key is missing. Please add it to backend/.env")
+    if not os.getenv("GEMINI_API_KEY") and not os.getenv("OPENROUTER_API_KEY"):
+        raise HTTPException(status_code=500, detail="AI API Key is missing. Please add GEMINI_API_KEY or OPENROUTER_API_KEY to backend/.env")
     
+    prompt = f"""
+    {request.prompt}
+    Lead Name: {request.lead.name}
+    Company: {request.lead.company}
+    
+    Rules:
+    - Be professional but friendly.
+    - Keep it under 100 words.
+    - Mention their company specifically.
+    - End with a clear call to action.
+    """
+
+    # Try OpenRouter first if key is available
+    if os.getenv("OPENROUTER_API_KEY"):
+        try:
+            completion = client.chat.completions.create(
+                model="google/gemini-2.0-flash-001", # You can change this to any OpenRouter model
+                messages=[
+                    {"role": "system", "content": "You are a senior sales representative."},
+                    {"role": "user", "content": prompt}
+                ],
+                extra_headers={
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "SalesAgent AI",
+                }
+            )
+            return {"content": completion.choices[0].message.content}
+        except Exception as e:
+            print(f"OpenRouter Error: {str(e)}")
+            # Fallback to Gemini if OpenRouter fails and Gemini key exists
+            if not os.getenv("GEMINI_API_KEY"):
+                raise HTTPException(status_code=500, detail=f"OpenRouter Error: {str(e)}")
+
+    # Try Google Gemini directly
     try:
-        # Use gemini-1.5-flash as a fallback if 2.0-flash is not accessible yet for the user
         model_name = 'gemini-2.0-flash'
         try:
             model = genai.GenerativeModel(model_name)
         except:
             model = genai.GenerativeModel('gemini-1.5-flash')
             
-        prompt = f"""
-        {request.prompt}
-        Lead Name: {request.lead.name}
-        Company: {request.lead.company}
-        
-        Rules:
-        - Be professional but friendly.
-        - Keep it under 100 words.
-        - Mention their company specifically.
-        - End with a clear call to action.
-        """
         response = model.generate_content(prompt)
         return {"content": response.text}
     except Exception as e:
-        print(f"Error generating email: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Gemini Error: {str(e)}")
+        print(f"Gemini Error: {str(e)}")
+        error_msg = str(e)
+        if "429" in error_msg:
+            error_msg = "Gemini Rate Limit Exceeded. Please try again later or switch to OpenRouter in settings."
+        raise HTTPException(status_code=500, detail=f"AI Error: {error_msg}")
 
 @app.post("/send-email")
 async def send_email(request: SendEmailRequest):
