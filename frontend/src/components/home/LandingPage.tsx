@@ -10,25 +10,61 @@ import { ParticleField } from "./ParticleField";
 gsap.registerPlugin(ScrollTrigger);
 
 const CircuitIcon = () => (
-  <div className="relative w-24 h-24 flex items-center justify-center">
-    <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full animate-pulse" />
-    <div className="relative z-10 w-16 h-16 rounded-full bg-zinc-900 border-2 border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.5)]">
-      <Zap className="text-blue-400" size={32} fill="currentColor" />
+  <div className="relative w-32 h-32 flex items-center justify-center scale-150 mb-20">
+    <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full animate-pulse" />
+    <motion.div 
+      animate={{ rotate: 360 }}
+      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+      className="absolute inset-0 border border-white/5 rounded-full" 
+    />
+    <div className="relative z-10 w-20 h-20 rounded-full bg-zinc-900 border-2 border-white/10 flex items-center justify-center shadow-[0_0_40px_rgba(59,130,246,0.6)]">
+      <Zap className="text-blue-400" size={40} fill="currentColor" />
     </div>
     <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox="0 0 100 100">
-      {/* Animated circuit paths */}
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
-        <motion.path
-          key={i}
-          d={`M 50 50 L ${50 + 40 * Math.cos((angle * Math.PI) / 180)} ${50 + 40 * Math.sin((angle * Math.PI) / 180)}`}
-          stroke="rgba(59, 130, 246, 0.3)"
-          strokeWidth="1.5"
-          strokeDasharray="5,5"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: i * 0.2 }}
-        />
-      ))}
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
+        const x2 = 50 + 80 * Math.cos((angle * Math.PI) / 180);
+        const y2 = 50 + 80 * Math.sin((angle * Math.PI) / 180);
+        return (
+          <g key={i}>
+            <path
+              d={`M 50 50 L ${x2} ${y2}`}
+              stroke="rgba(59, 130, 246, 0.15)"
+              strokeWidth="0.5"
+            />
+            <motion.circle
+              r="1.5"
+              fill="#3b82f6"
+              animate={{ 
+                cx: [50, x2],
+                cy: [50, y2],
+                opacity: [0, 1, 0]
+              }}
+              transition={{ 
+                 duration: 2.5, 
+                 repeat: Infinity, 
+                 ease: "easeInOut", 
+                 delay: i * 0.4 
+               }}
+            />
+            <motion.path
+              d={`M 50 50 L ${x2} ${y2}`}
+              stroke="#3b82f6"
+              strokeWidth="1"
+              strokeDasharray="10 100"
+              animate={{ 
+                strokeDashoffset: [-110, 0],
+                opacity: [0, 0.5, 0]
+              }}
+              transition={{ 
+                duration: 3, 
+                repeat: Infinity, 
+                ease: "linear", 
+                delay: i * 0.4 
+              }}
+            />
+          </g>
+        );
+      })}
     </svg>
   </div>
 );
@@ -149,9 +185,12 @@ export const LandingPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* 1. Lead Generation */}
-            <div className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all">
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+            >
               <div className="flex items-center gap-4 mb-8">
-                <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-400">
+                <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
                   <Search size={32} />
                 </div>
                 <h3 className="text-3xl font-bold">01. Lead Generation</h3>
@@ -162,10 +201,14 @@ export const LandingPage = () => {
                 <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-blue-500" /> Auto-enrich (LinkedIn, website, email)</li>
               </ul>
               <div className="relative h-48 bg-black/40 rounded-2xl border border-white/5 overflow-hidden p-4">
-                 <div className="flex gap-3 mb-4">
+                 <motion.div 
+                   animate={{ x: [0, 5, 0] }}
+                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                   className="flex gap-3 mb-4"
+                 >
                     <div className="w-1/4 h-3 bg-white/10 rounded" />
                     <div className="w-1/2 h-3 bg-white/5 rounded" />
-                 </div>
+                 </motion.div>
                  <div className="space-y-3">
                     {[...Array(3)].map((_, i) => (
                       <motion.div 
@@ -175,19 +218,26 @@ export const LandingPage = () => {
                         transition={{ delay: i * 0.2 }}
                         className="flex items-center gap-3"
                       >
-                        <div className="w-8 h-8 rounded-full bg-white/5" />
+                        <motion.div 
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 3, repeat: Infinity, delay: i * 0.5 }}
+                          className="w-8 h-8 rounded-full bg-white/5" 
+                        />
                         <div className="flex-1 h-2 bg-white/5 rounded" />
                       </motion.div>
                     ))}
                  </div>
                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/50 to-transparent" />
               </div>
-            </div>
+            </motion.div>
 
             {/* 2. Email Automation */}
-            <div className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all">
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+            >
               <div className="flex items-center gap-4 mb-8">
-                <div className="p-4 rounded-2xl bg-purple-500/10 text-purple-400">
+                <div className="p-4 rounded-2xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition-transform">
                   <Mail size={32} />
                 </div>
                 <h3 className="text-3xl font-bold">02. Email Automation</h3>
@@ -199,9 +249,15 @@ export const LandingPage = () => {
               </ul>
               <div className="relative h-48 bg-black/40 rounded-2xl border border-white/5 overflow-hidden p-6">
                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                    <motion.div 
+                      animate={{ 
+                        boxShadow: ["0 0 0px rgba(168,85,247,0)", "0 0 20px rgba(168,85,247,0.4)", "0 0 0px rgba(168,85,247,0)"]
+                      }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center"
+                    >
                        <Zap size={20} className="text-purple-400" />
-                    </div>
+                    </motion.div>
                     <div className="space-y-2">
                        <div className="w-32 h-2 bg-white/10 rounded" />
                        <div className="w-24 h-2 bg-white/5 rounded" />
@@ -209,7 +265,10 @@ export const LandingPage = () => {
                  </div>
                  <div className="space-y-2">
                     <motion.div 
-                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      animate={{ 
+                        opacity: [0.3, 1, 0.3],
+                        x: [-2, 2, -2]
+                      }}
                       transition={{ duration: 2, repeat: Infinity }}
                       className="w-full h-2 bg-white/5 rounded" 
                     />
@@ -217,12 +276,15 @@ export const LandingPage = () => {
                     <div className="w-3/4 h-2 bg-white/5 rounded" />
                  </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* 3. Follow-up Sequences */}
-            <div className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all">
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+            >
               <div className="flex items-center gap-4 mb-8">
-                <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-400">
+                <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
                   <MessageSquare size={32} />
                 </div>
                 <h3 className="text-3xl font-bold">03. Follow-up Sequences</h3>
@@ -232,14 +294,28 @@ export const LandingPage = () => {
                 <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-500" /> Auto-pause on reply</li>
                 <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-emerald-500" /> Natural AI rewriting per step</li>
               </ul>
-              <div className="flex gap-4 h-48">
+              <div className="flex gap-4 h-48 relative">
+                 <svg className="absolute top-1/2 left-0 w-full h-1 overflow-visible pointer-events-none">
+                    <motion.path 
+                      d="M 0 0 L 400 0"
+                      stroke="rgba(16, 185, 129, 0.2)"
+                      strokeWidth="2"
+                      strokeDasharray="10 10"
+                      animate={{ strokeDashoffset: [-20, 0] }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    />
+                 </svg>
                  {[1, 2, 3].map(i => (
                    <motion.div 
                      key={i}
                      initial={{ scale: 0.8, opacity: 0 }}
                      whileInView={{ scale: 1, opacity: 1 }}
-                     transition={{ delay: i * 0.1 }}
-                     className="flex-1 glass border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-3"
+                     animate={{ y: [0, -5, 0] }}
+                     transition={{ 
+                        y: { duration: 3, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 },
+                        scale: { duration: 0.5, delay: i * 0.1 }
+                     }}
+                     className="flex-1 glass border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center gap-3 relative z-10"
                    >
                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs font-bold">
                         {i}
@@ -248,12 +324,15 @@ export const LandingPage = () => {
                    </motion.div>
                  ))}
               </div>
-            </div>
+            </motion.div>
 
             {/* 4. Meeting Booking */}
-            <div className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all">
+            <motion.div 
+              whileHover={{ y: -10 }}
+              className="glass-card p-10 rounded-[2.5rem] group hover:glow transition-all"
+            >
               <div className="flex items-center gap-4 mb-8">
-                <div className="p-4 rounded-2xl bg-orange-500/10 text-orange-400">
+                <div className="p-4 rounded-2xl bg-orange-500/10 text-orange-400 group-hover:scale-110 transition-transform">
                   <Calendar size={32} />
                 </div>
                 <h3 className="text-3xl font-bold">04. Meeting Booking</h3>
@@ -263,8 +342,12 @@ export const LandingPage = () => {
                 <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-orange-500" /> Auto-send Calendly links</li>
                 <li className="flex items-center gap-3"><CheckCircle2 size={18} className="text-orange-500" /> Automatic calendar confirmation</li>
               </ul>
-              <div className="relative h-48 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center p-8">
-                 <div className="w-full glass-card p-4 rounded-xl flex items-center gap-4">
+              <div className="relative h-48 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center p-8 overflow-hidden">
+                 <motion.div 
+                   animate={{ scale: [1, 1.05, 1] }}
+                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                   className="w-full glass-card p-4 rounded-xl flex items-center gap-4 relative z-10"
+                 >
                     <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
                        <Calendar size={24} />
                     </div>
@@ -272,12 +355,17 @@ export const LandingPage = () => {
                        <div className="w-24 h-2 bg-white/10 rounded" />
                        <div className="w-32 h-2 bg-white/5 rounded" />
                     </div>
-                    <div className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                    <motion.div 
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold"
+                    >
                        BOOKED
-                    </div>
-                 </div>
+                    </motion.div>
+                 </motion.div>
+                 <div className="absolute inset-0 bg-orange-500/5 blur-3xl rounded-full" />
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
