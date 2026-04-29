@@ -9,8 +9,16 @@ import resend
 load_dotenv()
 
 # Configure API Keys
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-resend.api_key = os.getenv("RESEND_API_KEY")
+gemini_key = os.getenv("GEMINI_API_KEY")
+resend_key = os.getenv("RESEND_API_KEY")
+
+if not gemini_key:
+    print("⚠️ WARNING: GEMINI_API_KEY not found in environment variables")
+if not resend_key:
+    print("⚠️ WARNING: RESEND_API_KEY not found in environment variables")
+
+genai.configure(api_key=gemini_key)
+resend.api_key = resend_key
 
 app = FastAPI(
     title="SalesAgent AI API",
@@ -43,8 +51,17 @@ class SendEmailRequest(BaseModel):
 
 @app.post("/generate-email")
 async def generate_email(request: EmailRequest):
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(status_code=500, detail="Gemini API Key is missing. Please add it to backend/.env")
+    
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # Use gemini-1.5-flash as a fallback if 2.0-flash is not accessible yet for the user
+        model_name = 'gemini-2.0-flash'
+        try:
+            model = genai.GenerativeModel(model_name)
+        except:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
         prompt = f"""
         {request.prompt}
         Lead Name: {request.lead.name}
@@ -59,7 +76,8 @@ async def generate_email(request: EmailRequest):
         response = model.generate_content(prompt)
         return {"content": response.text}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error generating email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gemini Error: {str(e)}")
 
 @app.post("/send-email")
 async def send_email(request: SendEmailRequest):
