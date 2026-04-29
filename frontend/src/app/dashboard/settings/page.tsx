@@ -19,15 +19,23 @@ export default function SettingsPage() {
         >
           <div className="flex items-center gap-3 text-blue-400">
             <Bot size={24} />
-            <h2 className="text-xl font-semibold text-white">Gemini AI Configuration</h2>
+            <h2 className="text-xl font-semibold text-white">AI Configuration</h2>
           </div>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white/60">Model</label>
+              <label className="text-sm font-medium text-white/60">Preferred Provider</label>
               <select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-colors">
-                <option>gemini-2.0-flash (Recommended)</option>
-                <option>gemini-1.5-pro</option>
+                <option>OpenRouter (Recommended for reliability)</option>
+                <option>Google Gemini (Direct)</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white/60">OpenRouter Model</label>
+              <input 
+                type="text"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-colors"
+                placeholder="google/gemini-2.0-flash-001"
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-white/60">System Prompt</label>
