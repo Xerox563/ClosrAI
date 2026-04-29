@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Send, Copy, Check } from "lucide-react";
+import { X, Sparkles, Send, Copy, Check, Mail } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import axios from "axios";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const LeadDrawer = () => {
   const { selectedLead, setSelectedLead, updateLeadStatus } = useAppStore();
@@ -24,22 +27,43 @@ export const LeadDrawer = () => {
   };
 
   const handleGenerateEmail = async () => {
+    if (!selectedLead) return;
     setIsGenerating(true);
-    // Mocking Gemini response for now
-    setTimeout(() => {
-      const mockEmail = `Hi ${selectedLead?.name},\n\nI noticed ${selectedLead?.company} is doing some incredible work in your industry. I'd love to chat about how SalesAgent AI can help you automate your outreach and scale your growth.\n\nBest,\nYour Sales Team`;
-      simulateTypewriter(mockEmail);
+    try {
+      const response = await axios.post(`${API_URL}/generate-email`, {
+        lead: {
+          name: selectedLead.name,
+          company: selectedLead.company,
+          email: selectedLead.email
+        }
+      });
+      simulateTypewriter(response.data.content);
+    } catch (error) {
+      console.error("Failed to generate email", error);
+      alert("Failed to generate email. Please check your backend.");
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
 
   const handleSendEmail = async () => {
+    if (!selectedLead || !emailContent) return;
     setIsSending(true);
-    setTimeout(() => {
-      updateLeadStatus(selectedLead!.id, "Emailed");
-      setIsSending(false);
+    try {
+      await axios.post(`${API_URL}/send-email`, {
+        to_email: selectedLead.email,
+        subject: `Partnership opportunity for ${selectedLead.company}`,
+        content: emailContent
+      });
+      updateLeadStatus(selectedLead.id, "Emailed");
       setSelectedLead(null);
-    }, 1000);
+      alert("Email sent successfully!");
+    } catch (error) {
+      console.error("Failed to send email", error);
+      alert("Failed to send email. Please check your backend.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const copyToClipboard = () => {
