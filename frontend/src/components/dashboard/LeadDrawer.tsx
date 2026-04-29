@@ -77,9 +77,10 @@ export const LeadDrawer = () => {
       });
 
       setSelectedLead(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send email", error);
-      alert("Failed to send email. Please check your backend.");
+      const msg = error.response?.data?.detail || "Failed to send email. Please check your backend.";
+      alert(msg);
     } finally {
       setIsSending(false);
     }

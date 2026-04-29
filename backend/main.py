@@ -138,10 +138,16 @@ async def send_email(request: SendEmailRequest):
         except Exception as resend_err:
             error_detail = str(resend_err)
             print(f"Resend SDK Error: {error_detail}")
+            
             if "unauthorized" in error_detail.lower():
                 error_detail = "Invalid Resend API Key."
             elif "restriction" in error_detail.lower() or "verify" in error_detail.lower():
-                error_detail = "Resend is in Testing Mode. You can only send emails to your own registered email address (amitdevprod@gmail.com) until you verify a domain."
+                # Extract the authorized email from the error message if it exists
+                import re
+                match = re.search(r'\((.*?)\)', error_detail)
+                authorized_email = match.group(1) if match else "your registered email"
+                error_detail = f"Resend is in Testing Mode. You can only send emails to {authorized_email} until you verify a domain at resend.com/domains."
+            
             raise Exception(error_detail)
             
     except Exception as e:
