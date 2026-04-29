@@ -1,27 +1,44 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ParticleField } from "./ParticleField";
 import { ArrowRight } from "lucide-react";
+import gsap from "gsap";
 
 export const Hero = () => {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (titleRef.current && textRef.current) {
+      gsap.fromTo(titleRef.current, 
+        { y: 50, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1.5, ease: "expo.out", delay: 0.2 }
+      );
+      gsap.fromTo(textRef.current,
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.5 }
+      );
+    }
+  }, []);
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden px-6 pt-20">
       <ParticleField />
       
       <div className="relative z-10 max-w-5xl mx-auto text-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
         >
           <span className="inline-block px-4 py-1.5 rounded-full glass text-sm font-medium mb-6 text-blue-400">
             Introducing SalesAgent AI 0.1
           </span>
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tight mb-8 text-gradient leading-[1.1]">
+          <h1 ref={titleRef} className="text-6xl md:text-8xl font-bold tracking-tight mb-8 text-gradient leading-[1.1]">
             Your AI Sales Team. <br /> On Autopilot.
           </h1>
-          <p className="text-lg md:text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
+          <p ref={textRef} className="text-lg md:text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
             Automate cold outreach with hyper-personalized emails written by Gemini AI. 
             Add leads, generate, and send in seconds.
           </p>
