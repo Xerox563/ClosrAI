@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Send, Copy, Check, Mail } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import axios from "axios";
+import confetti from "canvas-confetti";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -56,8 +57,15 @@ export const LeadDrawer = () => {
         content: emailContent
       });
       updateLeadStatus(selectedLead.id, "Emailed");
+      
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#3b82f6', '#ffffff']
+      });
+
       setSelectedLead(null);
-      alert("Email sent successfully!");
     } catch (error) {
       console.error("Failed to send email", error);
       alert("Failed to send email. Please check your backend.");

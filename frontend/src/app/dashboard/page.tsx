@@ -7,15 +7,55 @@ import {
   MousePointer2, 
   TrendingUp 
 } from "lucide-react";
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar
+} from 'recharts';
 
-const stats = [
-  { label: "Total Leads", value: "1,284", icon: Users, change: "+12.5%" },
-  { label: "Emails Sent", value: "842", icon: Mail, change: "+18.2%" },
-  { label: "Reply Rate", value: "24.5%", icon: MousePointer2, change: "+4.1%" },
-  { label: "Conversion", value: "12.8%", icon: TrendingUp, change: "+2.4%" },
+import { useAppStore } from "@/store/useAppStore";
+import { useMemo } from "react";
+
+const areaData = [
+  { name: 'Mon', sent: 40, replies: 24 },
+  { name: 'Tue', sent: 30, replies: 13 },
+  { name: 'Wed', sent: 20, replies: 98 },
+  { name: 'Thu', sent: 27, replies: 39 },
+  { name: 'Fri', sent: 18, replies: 48 },
+  { name: 'Sat', sent: 23, replies: 38 },
+  { name: 'Sun', sent: 34, replies: 43 },
+];
+
+const barData = [
+  { name: 'Cold Email', value: 400 },
+  { name: 'LinkedIn', value: 300 },
+  { name: 'Follow-up', value: 200 },
+  { name: 'Referral', value: 278 },
 ];
 
 export default function DashboardPage() {
+  const { leads } = useAppStore();
+
+  const stats = useMemo(() => {
+    const total = leads.length;
+    const sent = leads.filter(l => l.status === "Emailed" || l.status === "Replied").length;
+    const replied = leads.filter(l => l.status === "Replied").length;
+    const replyRate = sent > 0 ? ((replied / sent) * 100).toFixed(1) : "0.0";
+    
+    return [
+      { label: "Total Leads", value: total.toLocaleString(), icon: Users, change: "+0%" },
+      { label: "Emails Sent", value: sent.toLocaleString(), icon: Mail, change: "+0%" },
+      { label: "Reply Rate", value: `${replyRate}%`, icon: MousePointer2, change: "+0%" },
+      { label: "Conversion", value: "0.0%", icon: TrendingUp, change: "+0%" },
+    ];
+  }, [leads]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -47,11 +87,46 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass p-8 rounded-2xl h-[400px] flex items-center justify-center text-white/20">
-          Analytics Chart Placeholder
+        <div className="glass p-8 rounded-2xl h-[400px]">
+          <h3 className="text-lg font-semibold mb-6">Performance Trend</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={areaData}>
+                <defs>
+                  <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                <XAxis dataKey="name" stroke="#ffffff40" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#ffffff40" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#000', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Area type="monotone" dataKey="sent" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSent)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="glass p-8 rounded-2xl h-[400px] flex items-center justify-center text-white/20">
-          Recent Activity Placeholder
+        
+        <div className="glass p-8 rounded-2xl h-[400px]">
+          <h3 className="text-lg font-semibold mb-6">Lead Sources</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                <XAxis dataKey="name" stroke="#ffffff40" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#ffffff40" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#000', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                  cursor={{ fill: '#ffffff05' }}
+                />
+                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
