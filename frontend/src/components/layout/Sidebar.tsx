@@ -10,13 +10,15 @@ import {
   Mail, 
   Settings, 
   LogOut,
-  BarChart3
+  BarChart3,
+  Search
 } from "lucide-react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+  { icon: Search, label: "Discovery", href: "/dashboard/search" },
+  { icon: Mail, label: "Campaigns", href: "/dashboard/campaigns" },
   { icon: Users, label: "Leads", href: "/dashboard/leads" },
-  { icon: Mail, label: "Outreach", href: "/dashboard/outreach" },
   { icon: BarChart3, label: "Analytics", href: "/dashboard/analytics" },
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
