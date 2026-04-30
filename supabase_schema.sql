@@ -15,7 +15,7 @@ CREATE TABLE campaigns (
     name TEXT NOT NULL,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed')),
     daily_limit INTEGER DEFAULT 50,
-    system_prompt TEXT,
+    sequence JSONB DEFAULT '[]', -- [{step: 1, type: 'email', delay: 0, template: '...'}, {step: 2, type: 'email', delay: 3, template: '...'}]
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 

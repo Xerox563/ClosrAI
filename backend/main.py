@@ -81,10 +81,32 @@ class LeadDB(BaseModel):
     location: Optional[str] = None
     status: Optional[str] = "New"
 
+class CampaignDB(BaseModel):
+    name: str
+    daily_limit: Optional[int] = 50
+    sequence: List[dict] = []
+
+@app.get("/campaigns")
+async def get_campaigns(user=Depends(get_current_user)):
+    try:
+        response = supabase.table("campaigns").select("*").eq("user_id", user.id).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/campaigns")
+async def create_campaign(campaign: CampaignDB, user=Depends(get_current_user)):
+    try:
+        data = campaign.dict()
+        data["user_id"] = user.id
+        response = supabase.table("campaigns").insert(data).execute()
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/leads")
 async def get_leads(user=Depends(get_current_user)):
     try:
-        # We use the user_id from the token to filter leads
         response = supabase.table("leads").select("*").eq("user_id", user.id).order("created_at", desc=True).execute()
         return response.data
     except Exception as e:
