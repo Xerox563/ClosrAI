@@ -30,6 +30,8 @@ CREATE TABLE leads (
     role TEXT,
     location TEXT,
     status TEXT DEFAULT 'New' CHECK (status IN ('New', 'Emailed', 'Replied', 'Booked')),
+    current_step INTEGER DEFAULT 0,
+    last_outreach_at TIMESTAMP WITH TIME ZONE,
     enrichment_data JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );

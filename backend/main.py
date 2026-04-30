@@ -3,13 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, EmailStr
+from typing import List, Optional
 import google.generativeai as genai
 import resend
 from openai import OpenAI
 from supabase import create_client, Client
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import List, Optional
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime, timedelta
+import asyncio
 
 load_dotenv()
 
@@ -24,6 +27,12 @@ supabase_key = os.getenv("SUPABASE_KEY")
 genai.configure(api_key=gemini_key)
 resend.api_key = resend_key
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# OpenRouter Client
+client = OpenAI(
+  base_url="https://openrouter.ai/api/v1",
+  api_key=openrouter_key,
+)
 
 security = HTTPBearer()
 
@@ -58,6 +67,123 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Unified AI Engine for background processing
+async def generate_email_content(lead_name, lead_company, prompt):
+    full_prompt = f"""
+    {prompt}
+    Lead Name: {lead_name}
+    Company: {lead_company}
+    
+    Rules:
+    - DO NOT include a subject line.
+    - DO NOT use placeholders like [Your Name] or [Your Company].
+    - Use \"SalesAgent AI\" as the company name.
+    - Be professional but friendly.
+    - Keep it under 100 words.
+    - Mention their company specifically.
+    - End with a clear call to action.
+    """
+    
+    if os.getenv("OPENROUTER_API_KEY"):
+        try:
+            completion = client.chat.completions.create(
+                model="google/gemini-2.0-flash-001",
+                messages=[{"role": "system", "content": "You are a senior sales representative."}, {"role": "user", "content": full_prompt}]
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            print(f"Background OpenRouter Error: {str(e)}")
+
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(full_prompt)
+        return response.text
+    except Exception as e:
+        print(f"Background Gemini Error: {str(e)}")
+        return None
+
+async def process_campaigns():
+    print(f"🚀 Autopilot: Processing sequences at {datetime.now()}")
+    try:
+        # 1. Get all active campaigns
+        campaigns = supabase.table("campaigns").select("*").eq("status", "active").execute().data
+        
+        for campaign in campaigns:
+            sequence = campaign.get("sequence", [])
+            if not sequence: continue
+            
+            # 2. Get leads in this campaign that haven't replied
+            leads = supabase.table("leads").select("*").eq("campaign_id", campaign["id"]).neq("status", "Replied").execute().data
+            
+            for lead in leads:
+                current_step_idx = lead.get("current_step", 0)
+                
+                # Check if there's a next step
+                if current_step_idx >= len(sequence): continue
+                
+                next_step = sequence[current_step_idx]
+                delay_days = next_step.get("delay", 0)
+                
+                # Check if enough time has passed since last outreach
+                last_outreach = lead.get("last_outreach_at")
+                if last_outreach:
+                    last_date = datetime.fromisoformat(last_outreach.replace('Z', '+00:00'))
+                    if datetime.now(last_date.tzinfo) < last_date + timedelta(days=delay_days):
+                        continue
+                
+                # 3. Process the step (Send Email)
+                print(f"📬 Sending step {current_step_idx + 1} to {lead['email']}")
+                
+                content = await generate_email_content(
+                    lead['name'], 
+                    lead['company'], 
+                    next_step.get("template", "Write a professional follow-up.")
+                )
+                
+                if content:
+                    # Send via Resend
+                    try:
+                        resend.Emails.send({
+                            "from": "SalesAgent AI <onboarding@resend.dev>",
+                            "to": [lead['email']],
+                            "subject": f"Follow up: {campaign['name']}",
+                            "text": content
+                        })
+                        
+                        # 4. Update Lead and History
+                        supabase.table("leads").update({
+                            "current_step": current_step_idx + 1,
+                            "last_outreach_at": datetime.now().isoformat(),
+                            "status": "Emailed"
+                        }).eq("id", lead["id"]).execute()
+                        
+                        supabase.table("outreach_history").insert({
+                            "lead_id": lead["id"],
+                            "user_id": campaign["user_id"],
+                            "subject": f"Follow up: {campaign['name']}",
+                            "body": content,
+                            "status": "sent"
+                        }).execute()
+                        
+                    except Exception as e:
+                        print(f"❌ Autopilot send failed: {str(e)}")
+                        
+    except Exception as e:
+        print(f"❌ Autopilot error: {str(e)}")
+
+# Initialize Scheduler
+scheduler = AsyncIOScheduler()
+scheduler.add_job(process_campaigns, 'interval', minutes=60) # Run every hour
+
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.start()
+    print("🤖 Autopilot worker started")
+
+@app.on_event("shutdown")
+async def stop_scheduler():
+    scheduler.shutdown()
+
 class LeadInfo(BaseModel):
     name: str
     company: str
@@ -80,6 +206,8 @@ class LeadDB(BaseModel):
     role: Optional[str] = None
     location: Optional[str] = None
     status: Optional[str] = "New"
+    campaign_id: Optional[str] = None
+    current_step: Optional[int] = 0
 
 class CampaignDB(BaseModel):
     name: str
