@@ -174,6 +174,7 @@ async def process_campaigns():
 # Initialize Scheduler
 scheduler = AsyncIOScheduler()
 scheduler.add_job(process_campaigns, 'interval', minutes=60) # Run every hour
+scheduler.add_job(send_daily_summaries, 'cron', hour=8) # Run every day at 8 AM
 
 @app.on_event("startup")
 async def start_scheduler():
@@ -304,6 +305,34 @@ async def handle_reply_webhook(reply: dict):
         
     return {"status": "processed", "sentiment": sentiment}
 
+@app.get("/auth/google/login")
+async def google_login():
+    # In a real app, you'd use a library like 'google-auth-oauthlib'
+    # This URL would be generated using your Google Cloud Console Client ID
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    scope = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly"
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&access_type=offline&prompt=consent"
+    return {"url": auth_url}
+
+@app.get("/tracking/pixel/{outreach_id}.png")
+async def tracking_pixel(outreach_id: str):
+    # Log that the email was opened
+    try:
+        supabase.table("outreach_history").update({"status": "opened"}).eq("id", outreach_id).execute()
+        print(f"👁️ Email {outreach_id} was opened")
+    except Exception as e:
+        print(f"Tracking error: {str(e)}")
+    
+    # Return a 1x1 transparent PNG
+    from fastapi.responses import Response
+    pixel_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+    return Response(content=pixel_data, media_type="image/png")
+
+async def send_daily_summaries():
+    print(f"📊 Running daily summary worker at {datetime.now()}")
+    # Logic to fetch stats for all active users and send them an email
+    # ...
 @app.get("/campaigns")
 async def get_campaigns(user=Depends(get_current_user)):
     try:

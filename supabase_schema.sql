@@ -5,6 +5,8 @@ CREATE TABLE profiles (
     company_name TEXT,
     sender_name TEXT,
     calendly_link TEXT,
+    google_refresh_token TEXT,
+    outlook_refresh_token TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
