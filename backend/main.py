@@ -214,6 +214,96 @@ class CampaignDB(BaseModel):
     daily_limit: Optional[int] = 50
     sequence: List[dict] = []
 
+async def analyze_sentiment(text):
+    prompt = f"""
+    Analyze the following email reply from a lead and categorize its sentiment.
+    Reply: "{text}"
+    
+    Categories:
+    - POSITIVE: Interested, wants to chat, asks for more info, or provides a meeting time.
+    - NEGATIVE: Not interested, stop contacting, or rude.
+    - NEUTRAL: Out of office, automatic reply, or unclear.
+    
+    Return ONLY the category name in uppercase.
+    """
+    
+    try:
+        if os.getenv("OPENROUTER_API_KEY"):
+            completion = client.chat.completions.create(
+                model="google/gemini-2.0-flash-001",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return completion.choices[0].message.content.strip().upper()
+        
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(prompt)
+        return response.text.strip().upper()
+    except Exception as e:
+        print(f"Sentiment Analysis Error: {str(e)}")
+        return "NEUTRAL"
+
+@app.post("/webhook/reply")
+async def handle_reply_webhook(reply: dict):
+    # Mocking a webhook from Gmail/Outlook/SendGrid
+    lead_email = reply.get("from_email")
+    reply_body = reply.get("body")
+    
+    if not lead_email or not reply_body:
+        raise HTTPException(status_code=400, detail="Invalid reply data")
+        
+    # 1. Find the lead
+    lead_res = supabase.table("leads").select("*").eq("email", lead_email).execute()
+    if not lead_res.data:
+        return {"status": "ignored", "message": "Lead not found"}
+    
+    lead = lead_res.data[0]
+    
+    # 2. Analyze Sentiment
+    sentiment = await analyze_sentiment(reply_body)
+    print(f"🧠 AI detected {sentiment} sentiment from {lead_email}")
+    
+    # 3. Handle Positive Reply (The Closer)
+    if sentiment == "POSITIVE":
+        # Get user's Calendly link from profile
+        profile_res = supabase.table("profiles").select("calendly_link, sender_name").eq("id", lead["user_id"]).execute()
+        calendly_link = "https://calendly.com/your-link" # Default fallback
+        sender_name = "SalesAgent AI"
+        
+        if profile_res.data:
+            calendly_link = profile_res.data[0].get("calendly_link", calendly_link)
+            sender_name = profile_res.data[0].get("sender_name", sender_name)
+            
+        auto_reply_content = f"Hi {lead['name']},\n\nGreat to hear from you! I'd love to chat. You can book a time that works best for you here: {calendly_link}\n\nBest,\n{sender_name}"
+        
+        # Send auto-reply via Resend
+        try:
+            resend.Emails.send({
+                "from": "SalesAgent AI <onboarding@resend.dev>",
+                "to": [lead_email],
+                "subject": f"Re: Meeting Request",
+                "text": auto_reply_content
+            })
+            
+            # Update status to Booked (or Replied)
+            supabase.table("leads").update({"status": "Booked"}).eq("id", lead["id"]).execute()
+            
+            supabase.table("outreach_history").insert({
+                "lead_id": lead["id"],
+                "user_id": lead["user_id"],
+                "subject": "Auto-Reply: Meeting Link",
+                "body": auto_reply_content,
+                "status": "replied"
+            }).execute()
+            
+        except Exception as e:
+            print(f"Auto-reply failed: {str(e)}")
+            
+    elif sentiment == "NEGATIVE":
+        # Pause further outreach
+        supabase.table("leads").update({"status": "Replied"}).eq("id", lead["id"]).execute()
+        
+    return {"status": "processed", "sentiment": sentiment}
+
 @app.get("/campaigns")
 async def get_campaigns(user=Depends(get_current_user)):
     try:
