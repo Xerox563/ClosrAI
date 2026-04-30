@@ -14,11 +14,28 @@ import {
 import Papa from "papaparse";
 import { useAppStore } from "@/store/useAppStore";
 import { LeadDrawer } from "@/components/dashboard/LeadDrawer";
+import axios from "axios";
+import { useEffect } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function LeadsPage() {
-  const { leads, addLead, setSelectedLead } = useAppStore();
+  const { leads, setLeads, addLead, setSelectedLead } = useAppStore();
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Fetch leads on mount
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/leads`);
+        setLeads(response.data);
+      } catch (error) {
+        console.error("Failed to fetch leads", error);
+      }
+    };
+    fetchLeads();
+  }, [setLeads]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -27,19 +44,22 @@ export default function LeadsPage() {
     setIsUploading(true);
     Papa.parse(file, {
       header: true,
-      complete: (results) => {
-        results.data.forEach((row: any) => {
+      complete: async (results) => {
+        for (const row of results.data as any[]) {
           if (row.email && row.name) {
-            addLead({
-              id: Math.random().toString(36).substr(2, 9),
-              name: row.name,
-              email: row.email,
-              company: row.company || "Unknown",
-              status: "New",
-              created_at: new Date().toISOString(),
-            });
+            try {
+              const response = await axios.post(`${API_URL}/leads`, {
+                name: row.name,
+                email: row.email,
+                company: row.company || "Unknown",
+                status: "New"
+              });
+              addLead(response.data);
+            } catch (error) {
+              console.error("Failed to sync lead to DB", error);
+            }
           }
-        });
+        }
         setIsUploading(false);
       },
     });
