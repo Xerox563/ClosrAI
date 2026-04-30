@@ -6,6 +6,9 @@ from pydantic import BaseModel, EmailStr
 import google.generativeai as genai
 import resend
 from openai import OpenAI
+from supabase import create_client, Client
+from fastapi import FastAPI, HTTPException, Depends, Header
+from typing import List, Optional
 
 load_dotenv()
 
@@ -13,15 +16,13 @@ load_dotenv()
 gemini_key = os.getenv("GEMINI_API_KEY")
 resend_key = os.getenv("RESEND_API_KEY")
 openrouter_key = os.getenv("OPENROUTER_API_KEY")
-
-if not gemini_key and not openrouter_key:
-    print("⚠️ WARNING: No AI API Key (GEMINI or OPENROUTER) found in environment variables")
-if not resend_key:
-    print("⚠️ WARNING: RESEND_API_KEY not found in environment variables")
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
 
 # Initialize Clients
 genai.configure(api_key=gemini_key)
 resend.api_key = resend_key
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # OpenRouter Client
 client = OpenAI(
@@ -57,6 +58,36 @@ class SendEmailRequest(BaseModel):
     to_email: EmailStr
     subject: str
     content: str
+
+# Database Models for API
+class LeadDB(BaseModel):
+    name: str
+    email: EmailStr
+    company: Optional[str] = None
+    role: Optional[str] = None
+    location: Optional[str] = None
+    status: Optional[str] = "New"
+
+@app.get("/leads")
+async def get_leads():
+    try:
+        response = supabase.table("leads").select("*").order("created_at", desc=True).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/leads")
+async def add_lead(lead: LeadDB):
+    try:
+        # In a real app, we'd get the user_id from the auth token
+        # For now, we'll need to handle user context properly
+        data = lead.dict()
+        # Mocking user_id for now - you'll need to replace this with actual auth logic
+        # data["user_id"] = "..." 
+        response = supabase.table("leads").insert(data).execute()
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate-email")
 async def generate_email(request: EmailRequest):
