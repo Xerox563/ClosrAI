@@ -16,6 +16,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { LeadDrawer } from "@/components/dashboard/LeadDrawer";
 import axios from "axios";
 import { useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,19 +24,25 @@ export default function LeadsPage() {
   const { leads, setLeads, addLead, setSelectedLead } = useAppStore();
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const supabase = createClient();
 
   // Fetch leads on mount
   useEffect(() => {
     const fetchLeads = async () => {
       try {
-        const response = await axios.get(`${API_URL}/leads`);
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await axios.get(`${API_URL}/leads`, {
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`
+          }
+        });
         setLeads(response.data);
       } catch (error) {
         console.error("Failed to fetch leads", error);
       }
     };
     fetchLeads();
-  }, [setLeads]);
+  }, [setLeads, supabase.auth]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -45,6 +52,7 @@ export default function LeadsPage() {
     Papa.parse(file, {
       header: true,
       complete: async (results) => {
+        const { data: { session } } = await supabase.auth.getSession();
         for (const row of results.data as any[]) {
           if (row.email && row.name) {
             try {
@@ -53,6 +61,10 @@ export default function LeadsPage() {
                 email: row.email,
                 company: row.company || "Unknown",
                 status: "New"
+              }, {
+                headers: {
+                  Authorization: `Bearer ${session?.access_token}`
+                }
               });
               addLead(response.data);
             } catch (error) {

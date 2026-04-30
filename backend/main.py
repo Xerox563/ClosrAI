@@ -8,6 +8,7 @@ import resend
 from openai import OpenAI
 from supabase import create_client, Client
 from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import List, Optional
 
 load_dotenv()
@@ -23,6 +24,18 @@ supabase_key = os.getenv("SUPABASE_KEY")
 genai.configure(api_key=gemini_key)
 resend.api_key = resend_key
 supabase: Client = create_client(supabase_url, supabase_key)
+
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        user = supabase.auth.get_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        return user.user
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 # OpenRouter Client
 client = OpenAI(
@@ -69,21 +82,19 @@ class LeadDB(BaseModel):
     status: Optional[str] = "New"
 
 @app.get("/leads")
-async def get_leads():
+async def get_leads(user=Depends(get_current_user)):
     try:
-        response = supabase.table("leads").select("*").order("created_at", desc=True).execute()
+        # We use the user_id from the token to filter leads
+        response = supabase.table("leads").select("*").eq("user_id", user.id).order("created_at", desc=True).execute()
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/leads")
-async def add_lead(lead: LeadDB):
+async def add_lead(lead: LeadDB, user=Depends(get_current_user)):
     try:
-        # In a real app, we'd get the user_id from the auth token
-        # For now, we'll need to handle user context properly
         data = lead.dict()
-        # Mocking user_id for now - you'll need to replace this with actual auth logic
-        # data["user_id"] = "..." 
+        data["user_id"] = user.id
         response = supabase.table("leads").insert(data).execute()
         return response.data[0]
     except Exception as e:
