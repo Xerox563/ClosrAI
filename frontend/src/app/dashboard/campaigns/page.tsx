@@ -15,7 +15,7 @@ import {
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 interface Campaign {
   id: string;
@@ -30,6 +30,9 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
+  const [newSequence, setNewSequence] = useState([
+    { step: 1, type: 'email', delay: 0, template: 'Initial outreach' }
+  ]);
   const supabase = createClient();
 
   useEffect(() => {
@@ -48,6 +51,26 @@ export default function CampaignsPage() {
     }
   };
 
+  const addStep = () => {
+    setNewSequence([...newSequence, { 
+      step: newSequence.length + 1, 
+      type: 'email', 
+      delay: 3, 
+      template: 'Follow-up email' 
+    }]);
+  };
+
+  const removeStep = (index: number) => {
+    const updated = newSequence.filter((_, i) => i !== index).map((s, i) => ({ ...s, step: i + 1 }));
+    setNewSequence(updated);
+  };
+
+  const updateStep = (index: number, field: string, value: any) => {
+    const updated = [...newSequence];
+    updated[index] = { ...updated[index], [field]: value };
+    setNewSequence(updated);
+  };
+
   const handleCreateCampaign = async () => {
     if (!newCampaignName) return;
     const { data: { session } } = await supabase.auth.getSession();
@@ -55,15 +78,13 @@ export default function CampaignsPage() {
       const response = await axios.post(`${API_URL}/campaigns`, {
         name: newCampaignName,
         daily_limit: 50,
-        sequence: [
-          { step: 1, type: 'email', delay: 0, template: 'Initial outreach' },
-          { step: 2, type: 'email', delay: 3, template: 'First follow-up' }
-        ]
+        sequence: newSequence
       }, {
         headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       setCampaigns([response.data, ...campaigns]);
       setNewCampaignName("");
+      setNewSequence([{ step: 1, type: 'email', delay: 0, template: 'Initial outreach' }]);
       setIsCreating(false);
     } catch (error) {
       console.error("Failed to create campaign", error);
@@ -90,29 +111,92 @@ export default function CampaignsPage() {
         <AnimatePresence>
           {isCreating && (
             <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="glass p-6 rounded-2xl border-blue-500/30 border"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass p-8 rounded-[2.5rem] border-blue-500/30 border space-y-8"
             >
-              <div className="flex items-center gap-4">
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Campaign Name</label>
                 <input 
                   autoFocus
                   type="text"
-                  placeholder="Campaign Name (e.g., Summer Outreach)"
+                  placeholder="e.g., Q2 SaaS Founders Outreach"
                   value={newCampaignName}
                   onChange={(e) => setNewCampaignName(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:border-blue-500 transition-colors text-xl"
                 />
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Sequence Steps</label>
+                  <button 
+                    onClick={addStep}
+                    className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                  >
+                    <Plus size={14} /> Add Step
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {newSequence.map((step, idx) => (
+                    <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-6 relative group">
+                      <div className="flex items-start gap-6">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold">
+                          {step.step}
+                        </div>
+                        <div className="flex-1 space-y-4">
+                          <div className="flex gap-4">
+                            <div className="flex-1 space-y-2">
+                              <label className="text-[10px] font-bold text-white/20 uppercase">Wait Time (Days)</label>
+                              <input 
+                                type="number"
+                                value={step.delay}
+                                onChange={(e) => updateStep(idx, 'delay', parseInt(e.target.value))}
+                                className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-sm outline-none focus:border-blue-500"
+                              />
+                            </div>
+                            <div className="flex-[3] space-y-2">
+                              <label className="text-[10px] font-bold text-white/20 uppercase">Step Type</label>
+                              <select className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-sm outline-none focus:border-blue-500">
+                                <option>Email Outreach</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-white/20 uppercase">Email Template / AI Prompt</label>
+                            <textarea 
+                              value={step.template}
+                              onChange={(e) => updateStep(idx, 'template', e.target.value)}
+                              className="w-full h-24 bg-black/20 border border-white/10 rounded-lg py-3 px-4 text-sm outline-none focus:border-blue-500 resize-none"
+                            />
+                          </div>
+                        </div>
+                        {newSequence.length > 1 && (
+                          <button 
+                            onClick={() => removeStep(idx)}
+                            className="p-2 text-white/10 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
                 <button 
                   onClick={handleCreateCampaign}
-                  className="px-6 py-3 rounded-xl bg-white text-black font-bold hover:bg-white/90 transition-colors"
+                  className="flex-1 py-4 rounded-2xl bg-white text-black font-black hover:bg-white/90 transition-colors"
                 >
-                  Create
+                  Launch Campaign
                 </button>
                 <button 
                   onClick={() => setIsCreating(false)}
-                  className="px-6 py-3 rounded-xl glass hover:bg-white/5 transition-colors"
+                  className="px-8 py-4 rounded-2xl glass hover:bg-white/5 transition-colors font-bold"
                 >
                   Cancel
                 </button>

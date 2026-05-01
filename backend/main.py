@@ -1,14 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
-import google.generativeai as genai
+from google import genai
 import resend
 from openai import OpenAI
 from supabase import create_client, Client
-from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
@@ -24,7 +23,8 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 
 # Initialize Clients
-genai.configure(api_key=gemini_key)
+# New Google Gen AI Client
+gemini_client = genai.Client(api_key=gemini_key)
 resend.api_key = resend_key
 supabase: Client = create_client(supabase_url, supabase_key)
 
@@ -95,12 +95,19 @@ async def generate_email_content(lead_name, lead_company, prompt):
             print(f"Background OpenRouter Error: {str(e)}")
 
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(full_prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=full_prompt
+        )
         return response.text
     except Exception as e:
         print(f"Background Gemini Error: {str(e)}")
         return None
+
+async def send_daily_summaries():
+    print(f"📊 Running daily summary worker at {datetime.now()}")
+    # Logic to fetch stats for all active users and send them an email
+    # ...
 
 async def process_campaigns():
     print(f"🚀 Autopilot: Processing sequences at {datetime.now()}")
@@ -236,8 +243,10 @@ async def analyze_sentiment(text):
             )
             return completion.choices[0].message.content.strip().upper()
         
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         return response.text.strip().upper()
     except Exception as e:
         print(f"Sentiment Analysis Error: {str(e)}")
@@ -329,10 +338,30 @@ async def tracking_pixel(outreach_id: str):
     pixel_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
     return Response(content=pixel_data, media_type="image/png")
 
-async def send_daily_summaries():
-    print(f"📊 Running daily summary worker at {datetime.now()}")
-    # Logic to fetch stats for all active users and send them an email
-    # ...
+class ProfileDB(BaseModel):
+    full_name: Optional[str] = None
+    company_name: Optional[str] = None
+    sender_name: Optional[str] = None
+    calendly_link: Optional[str] = None
+
+@app.get("/profile")
+async def get_profile(user=Depends(get_current_user)):
+    try:
+        response = supabase.table("profiles").select("*").eq("id", user.id).execute()
+        if not response.data:
+            return {}
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/profile")
+async def update_profile(profile: ProfileDB, user=Depends(get_current_user)):
+    try:
+        data = profile.dict(exclude_unset=True)
+        response = supabase.table("profiles").upsert({"id": user.id, **data}).execute()
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @app.get("/campaigns")
 async def get_campaigns(user=Depends(get_current_user)):
     try:
@@ -366,6 +395,14 @@ async def add_lead(lead: LeadDB, user=Depends(get_current_user)):
         data["user_id"] = user.id
         response = supabase.table("leads").insert(data).execute()
         return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/leads/{lead_id}/history")
+async def get_lead_history(lead_id: str, user=Depends(get_current_user)):
+    try:
+        response = supabase.table("outreach_history").select("*").eq("lead_id", lead_id).order("created_at", desc=True).execute()
+        return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -412,13 +449,10 @@ async def generate_email(request: EmailRequest):
 
     # Try Google Gemini directly
     try:
-        model_name = 'gemini-2.0-flash'
-        try:
-            model = genai.GenerativeModel(model_name)
-        except:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
-        response = model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         return {"content": response.text}
     except Exception as e:
         print(f"Gemini Error: {str(e)}")
@@ -428,7 +462,7 @@ async def generate_email(request: EmailRequest):
         raise HTTPException(status_code=500, detail=f"AI Error: {error_msg}")
 
 @app.post("/send-email")
-async def send_email(request: SendEmailRequest):
+async def send_email(request: SendEmailRequest, user=Depends(get_current_user)):
     if not os.getenv("RESEND_API_KEY"):
         raise HTTPException(status_code=500, detail="Resend API Key is missing. Please add it to backend/.env")
         
@@ -445,6 +479,22 @@ async def send_email(request: SendEmailRequest):
         
         try:
             email = resend.Emails.send(params)
+            
+            # Try to find the lead to update status and log history
+            lead_res = supabase.table("leads").select("id").eq("email", request.to_email).eq("user_id", user.id).execute()
+            if lead_res.data:
+                lead_id = lead_res.data[0]["id"]
+                # Update lead status
+                supabase.table("leads").update({"status": "Emailed"}).eq("id", lead_id).execute()
+                # Log history
+                supabase.table("outreach_history").insert({
+                    "lead_id": lead_id,
+                    "user_id": user.id,
+                    "subject": request.subject,
+                    "body": request.content,
+                    "status": "sent"
+                }).execute()
+
             return {"id": email.get("id")}
         except Exception as resend_err:
             error_detail = str(resend_err)

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Send, Copy, Check, Mail } from "lucide-react";
+import { X, Sparkles, Send, Copy, Check, Mail, History, Calendar } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import axios from "axios";
 import confetti from "canvas-confetti";
+import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export const LeadDrawer = () => {
   const { selectedLead, setSelectedLead, updateLeadStatus } = useAppStore();
@@ -15,6 +16,34 @@ export const LeadDrawer = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    if (selectedLead) {
+      fetchHistory();
+    } else {
+      setHistory([]);
+      setEmailContent("");
+    }
+  }, [selectedLead]);
+
+  const fetchHistory = async () => {
+    if (!selectedLead) return;
+    setIsLoadingHistory(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await axios.get(`${API_URL}/leads/${selectedLead.id}/history`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      setHistory(response.data);
+    } catch (error) {
+      console.error("Failed to fetch history", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   // Typewriter effect simulation
   const simulateTypewriter = (text: string) => {
@@ -62,10 +91,13 @@ export const LeadDrawer = () => {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       await axios.post(`${API_URL}/send-email`, {
         to_email: selectedLead.email,
         subject: subject,
         content: cleanContent
+      }, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
       });
       updateLeadStatus(selectedLead.id, "Emailed");
       
@@ -162,6 +194,39 @@ export const LeadDrawer = () => {
                   >
                     {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
                   </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-white/40">
+                <History size={16} />
+                <h3 className="text-sm font-semibold uppercase tracking-wider">Outreach History</h3>
+              </div>
+              
+              <div className="space-y-3">
+                {isLoadingHistory ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  </div>
+                ) : history.length > 0 ? (
+                  history.map((item, idx) => (
+                    <div key={idx} className="glass p-4 rounded-xl border-white/5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-400 uppercase">{item.status}</span>
+                        <span className="text-[10px] text-white/20 flex items-center gap-1">
+                          <Calendar size={10} />
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium text-white/80">{item.subject}</div>
+                      <div className="text-xs text-white/40 line-clamp-2 italic">"{item.body}"</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 glass rounded-xl border-dashed border-white/10">
+                    <p className="text-xs text-white/20">No outreach history yet.</p>
+                  </div>
                 )}
               </div>
             </div>

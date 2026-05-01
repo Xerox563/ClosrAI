@@ -18,41 +18,62 @@ import axios from "axios";
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export default function LeadsPage() {
   const { leads, setLeads, addLead, setSelectedLead } = useAppStore();
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const supabase = createClient();
 
-  // Fetch leads on mount
+  // Fetch leads and campaigns on mount
   useEffect(() => {
-    const fetchLeads = async () => {
+    const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const response = await axios.get(`${API_URL}/leads`, {
+        
+        // Fetch Leads
+        const leadsResponse = await axios.get(`${API_URL}/leads`, {
           headers: {
             Authorization: `Bearer ${session?.access_token}`
           }
         });
-        setLeads(response.data);
+        setLeads(leadsResponse.data);
+
+        // Fetch Campaigns
+        const campaignsResponse = await axios.get(`${API_URL}/campaigns`, {
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`
+          }
+        });
+        setCampaigns(campaignsResponse.data);
+        if (campaignsResponse.data.length > 0) {
+          setSelectedCampaignId(campaignsResponse.data[0].id);
+        }
       } catch (error) {
-        console.error("Failed to fetch leads", error);
+        console.error("Failed to fetch data", error);
       }
     };
-    fetchLeads();
+    fetchData();
   }, [setLeads, supabase.auth]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!selectedCampaignId) {
+      alert("Please select a campaign first!");
+      return;
+    }
+
     setIsUploading(true);
     Papa.parse(file, {
       header: true,
       complete: async (results) => {
         const { data: { session } } = await supabase.auth.getSession();
+        let count = 0;
         for (const row of results.data as any[]) {
           if (row.email && row.name) {
             try {
@@ -60,19 +81,22 @@ export default function LeadsPage() {
                 name: row.name,
                 email: row.email,
                 company: row.company || "Unknown",
-                status: "New"
+                status: "New",
+                campaign_id: selectedCampaignId
               }, {
                 headers: {
                   Authorization: `Bearer ${session?.access_token}`
                 }
               });
               addLead(response.data);
+              count++;
             } catch (error) {
               console.error("Failed to sync lead to DB", error);
             }
           }
         }
         setIsUploading(false);
+        alert(`Successfully imported ${count} leads!`);
       },
     });
   };
@@ -91,6 +115,16 @@ export default function LeadsPage() {
           <p className="text-white/40 text-lg">Manage and track your cold outreach prospects.</p>
         </div>
         <div className="flex gap-4">
+          <select 
+            value={selectedCampaignId}
+            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm"
+          >
+            <option value="">Select Campaign...</option>
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
           <label className="flex items-center gap-2 px-4 py-2 rounded-xl glass hover:bg-white/10 transition-colors cursor-pointer text-sm font-medium">
             <Upload size={18} />
             {isUploading ? "Uploading..." : "Import CSV"}

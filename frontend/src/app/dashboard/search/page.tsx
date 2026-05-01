@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, 
   Filter, 
   Plus, 
   Globe, 
-  Linkedin, 
   Building2, 
   UserPlus,
   Sparkles,
@@ -16,7 +15,7 @@ import {
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 interface LeadResult {
   id: string;
@@ -34,7 +33,29 @@ export default function LeadSearchPage() {
   const [results, setResults] = useState<LeadResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await axios.get(`${API_URL}/campaigns`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      setCampaigns(response.data);
+      if (response.data.length > 0) {
+        setSelectedCampaignId(response.data[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch campaigns", error);
+    }
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +78,38 @@ export default function LeadSearchPage() {
     setSelectedLeads(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
+
+  const handleAddToCampaign = async () => {
+    if (selectedLeads.length === 0 || !selectedCampaignId) return;
+    
+    setIsAdding(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const leadsToAdd = results.filter(r => selectedLeads.includes(r.id));
+      
+      for (const lead of leadsToAdd) {
+        await axios.post(`${API_URL}/leads`, {
+          name: lead.name,
+          email: lead.email,
+          company: lead.company,
+          role: lead.role,
+          location: lead.location,
+          campaign_id: selectedCampaignId,
+          status: "New"
+        }, {
+          headers: { Authorization: `Bearer ${session?.access_token}` }
+        });
+      }
+      
+      alert(`Successfully added ${selectedLeads.length} leads to campaign!`);
+      setSelectedLeads([]);
+    } catch (error) {
+      console.error("Failed to add leads to campaign", error);
+      alert("Failed to add leads to campaign.");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (
@@ -126,9 +179,6 @@ export default function LeadSearchPage() {
 
                  <div className="flex items-center gap-4">
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-[#0077B5]">
-                          <Linkedin size={16} />
-                       </button>
                        <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-blue-400">
                           <Globe size={16} />
                        </button>
@@ -176,12 +226,35 @@ export default function LeadSearchPage() {
                  )}
               </div>
 
+              {selectedLeads.length > 0 && (
+                <div className="space-y-4 mb-6">
+                  <label className="text-xs font-bold text-white/40 uppercase tracking-widest">Select Campaign</label>
+                  <select 
+                    value={selectedCampaignId}
+                    onChange={(e) => setSelectedCampaignId(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-blue-500 transition-colors text-sm"
+                  >
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                    {campaigns.length === 0 && <option value="">No campaigns found</option>}
+                  </select>
+                </div>
+              )}
+
               <button 
-                disabled={selectedLeads.length === 0}
+                onClick={handleAddToCampaign}
+                disabled={selectedLeads.length === 0 || !selectedCampaignId || isAdding}
                 className="w-full py-4 rounded-2xl bg-white text-black font-black flex items-center justify-center gap-2 hover:bg-white/90 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)]"
               >
-                <UserPlus size={18} />
-                Add to Campaign
+                {isAdding ? (
+                  <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <UserPlus size={18} />
+                    Add to Campaign
+                  </>
+                )}
               </button>
            </div>
         </div>
