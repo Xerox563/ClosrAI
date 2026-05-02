@@ -20,17 +20,11 @@ import {
 } from 'recharts';
 
 import { useAppStore } from "@/store/useAppStore";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import axios from "axios";
+import { createClient } from "@/lib/supabase/client";
 
-const areaData = [
-  { name: 'Mon', sent: 40, replies: 24 },
-  { name: 'Tue', sent: 30, replies: 13 },
-  { name: 'Wed', sent: 20, replies: 98 },
-  { name: 'Thu', sent: 27, replies: 39 },
-  { name: 'Fri', sent: 18, replies: 48 },
-  { name: 'Sat', sent: 23, replies: 38 },
-  { name: 'Sun', sent: 34, replies: 43 },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 const barData = [
   { name: 'Cold Email', value: 400 },
@@ -40,21 +34,61 @@ const barData = [
 ];
 
 export default function DashboardPage() {
-  const { leads } = useAppStore();
+  const [realtimeStats, setRealtimeStats] = useState({
+    total_leads: 0,
+    emails_sent: 0,
+    reply_rate: 0,
+    conversion_rate: 0
+  });
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchRealtimeData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = { Authorization: `Bearer ${session?.access_token}` };
+        
+        const statsRes = await axios.get(`${API_URL}/analytics/stats`, { headers });
+        setRealtimeStats(statsRes.data);
+
+        const trendsRes = await axios.get(`${API_URL}/analytics/trends`, { headers });
+        // Process trend data into chart format
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const chartMap: any = {};
+        
+        // Initialize last 7 days
+        for(let i=6; i>=0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          chartMap[days[d.getDay()]] = { name: days[d.getDay()], sent: 0, replies: 0 };
+        }
+
+        trendsRes.data.forEach((item: any) => {
+          const day = days[new Date(item.created_at).getDay()];
+          if (chartMap[day]) {
+            if (item.status === 'sent') chartMap[day].sent++;
+            if (item.status === 'replied') chartMap[day].replies++;
+          }
+        });
+
+        setTrendData(Object.values(chartMap));
+      } catch (error) {
+        console.error("Failed to fetch dashboard data", error);
+      }
+    };
+
+    fetchRealtimeData();
+  }, []);
 
   const stats = useMemo(() => {
-    const total = leads.length;
-    const sent = leads.filter(l => l.status === "Emailed" || l.status === "Replied").length;
-    const replied = leads.filter(l => l.status === "Replied").length;
-    const replyRate = sent > 0 ? ((replied / sent) * 100).toFixed(1) : "0.0";
-    
     return [
-      { label: "Total Leads", value: total.toLocaleString(), icon: Users, change: "+0%" },
-      { label: "Emails Sent", value: sent.toLocaleString(), icon: Mail, change: "+0%" },
-      { label: "Reply Rate", value: `${replyRate}%`, icon: MousePointer2, change: "+0%" },
-      { label: "Conversion", value: "0.0%", icon: TrendingUp, change: "+0%" },
+      { label: "Total Leads", value: realtimeStats.total_leads.toLocaleString(), icon: Users, change: "+0%" },
+      { label: "Emails Sent", value: realtimeStats.emails_sent.toLocaleString(), icon: Mail, change: "+0%" },
+      { label: "Reply Rate", value: `${realtimeStats.reply_rate}%`, icon: MousePointer2, change: "+0%" },
+      { label: "Conversion", value: `${realtimeStats.conversion_rate}%`, icon: TrendingUp, change: "+0%" },
     ];
-  }, [leads]);
+  }, [realtimeStats]);
 
   return (
     <div className="space-y-8">
@@ -88,10 +122,10 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass p-8 rounded-2xl h-[400px]">
-          <h3 className="text-lg font-semibold mb-6">Performance Trend</h3>
+          <h3 className="text-lg font-semibold mb-6">Performance Trend (Last 7 Days)</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={areaData}>
+              <AreaChart data={trendData.length > 0 ? trendData : []}>
                 <defs>
                   <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>

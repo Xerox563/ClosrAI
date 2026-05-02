@@ -21,6 +21,8 @@ resend_key = os.getenv("RESEND_API_KEY")
 openrouter_key = os.getenv("OPENROUTER_API_KEY")
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
+hunter_key = os.getenv("HUNTER_API_KEY")
+apollo_key = os.getenv("APOLLO_API_KEY")
 
 # Initialize Clients
 # New Google Gen AI Client
@@ -34,16 +36,92 @@ client = OpenAI(
   api_key=openrouter_key,
 )
 
+import httpx
+
+async def get_apollo_leads(query: str):
+    """
+    Fetch high-fidelity leads from Apollo.io with improved parsing
+    """
+    if not apollo_key:
+        print("⚠️ No Apollo API Key found")
+        return []
+    
+    try:
+        async with httpx.AsyncClient() as a_client:
+            url = "https://api.apollo.io/v1/people/search"
+            headers = {
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache",
+                "X-Api-Key": apollo_key
+            }
+            data = {
+                "q_keywords": query,
+                "page": 1,
+                "per_page": 20
+            }
+            print(f"📡 Sending request to Apollo for: {query}")
+            response = await a_client.post(url, headers=headers, json=data)
+            print(f"📡 Apollo response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                results = response.json()
+                people = results.get("people", [])
+                print(f"📡 Apollo returned {len(people)} people")
+                formatted = []
+                for p in people:
+                    name = p.get("name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+                    title = p.get("title") or p.get("headline")
+                    org_name = p.get("organization", {}).get("name")
+                    
+                    if name and org_name:
+                        formatted.append({
+                            "name": name,
+                            "role": title or "Executive",
+                            "company": org_name,
+                            "domain": p.get("organization", {}).get("primary_domain") or p.get("organization", {}).get("website_url"),
+                            "email": p.get("email") or "",
+                            "location": f"{p.get('city', '')}, {p.get('country', '')}".strip(", "),
+                            "linkedin": p.get("linkedin_url") or "#",
+                            "bio": f"{title} at {org_name}. Based in {p.get('city', 'Global')}."
+                        })
+                return formatted
+            else:
+                print(f"❌ Apollo Error Response: {response.text}")
+    except Exception as e:
+        print(f"❌ Apollo.io Exception: {str(e)}")
+    return []
+
+async def get_hunter_emails(domain: str):
+    """
+    Fetch verified emails from Hunter.io for a given domain
+    """
+    if not hunter_key:
+        return []
+    
+    try:
+        async with httpx.AsyncClient() as h_client:
+            url = f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={hunter_key}"
+            response = await h_client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                emails = data.get("data", {}).get("emails", [])
+                return [e.get("value") for e in emails]
+    except Exception as e:
+        print(f"Hunter.io Error: {str(e)}")
+    return []
+
 security = HTTPBearer()
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
         user = supabase.auth.get_user(token)
-        if not user:
+        if not user or not user.user:
+            print(f"❌ Auth failed: No user found for token")
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
         return user.user
     except Exception as e:
+        print(f"❌ Auth Exception: {str(e)}")
         raise HTTPException(status_code=401, detail=str(e))
 
 # OpenRouter Client
@@ -406,48 +484,203 @@ async def get_lead_history(lead_id: str, user=Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class SearchRequest(BaseModel):
+    query: str
+
+@app.get("/analytics/stats")
+async def get_stats(user=Depends(get_current_user)):
+    try:
+        # Total Leads
+        leads_res = supabase.table("leads").select("id", count="exact").eq("user_id", user.id).execute()
+        total_leads = leads_res.count if leads_res.count is not None else 0
+        
+        # Outreach Stats
+        history_res = supabase.table("outreach_history").select("status").eq("user_id", user.id).execute()
+        history_data = history_res.data
+        
+        sent = len([h for h in history_data if h["status"] == "sent"])
+        opened = len([h for h in history_data if h["status"] == "opened"])
+        replied = len([h for h in history_data if h["status"] == "replied"])
+        
+        reply_rate = (replied / sent * 100) if sent > 0 else 0
+        
+        return {
+            "total_leads": total_leads,
+            "emails_sent": sent,
+            "opened_count": opened,
+            "replied_count": replied,
+            "reply_rate": round(reply_rate, 1),
+            "conversion_rate": round(replied / total_leads * 100, 1) if total_leads > 0 else 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/trends")
+async def get_trends(user=Depends(get_current_user)):
+    try:
+        # Get history from last 7 days
+        seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
+        res = supabase.table("outreach_history")\
+            .select("created_at, status")\
+            .eq("user_id", user.id)\
+            .gte("created_at", seven_days_ago)\
+            .execute()
+        
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/search-leads")
+async def search_leads(request: SearchRequest, user=Depends(get_current_user)):
+    """
+    Hybrid Search: Combines Apollo.io (High Fidelity) + AI Search Grounding (Fallback/Enrichment)
+    """
+    import json
+    import re
+    import uuid
+
+    print(f"🔍 SEARCH REQUEST RECEIVED: {request.query}")
+    leads = []
+
+    # 1. TRY APOLLO.IO FIRST (High Fidelity Structured Data)
+    if apollo_key:
+        print(f"🚀 Attempting Apollo.io Search for: {request.query}")
+        try:
+            leads = await get_apollo_leads(request.query)
+            print(f"✅ Apollo found {len(leads)} leads")
+        except Exception as e:
+            print(f"❌ Apollo Search failed: {str(e)}")
+
+    # 2. IF APOLLO HAS NO RESULTS, FALLBACK TO AI SEARCH GROUNDING
+    if not leads:
+        print(f"🤖 No Apollo results. Falling back to AI Search Grounding...")
+        prompt = f"""
+        Find 15-20 REAL people matching this query: "{request.query}"
+        
+        For each person, you MUST provide:
+        - name: Full Name
+        - role: Job Title
+        - company: Company Name
+        - domain: Company Website (e.g. apple.com)
+        - email: Their professional email address
+        - location: City, Country
+        - linkedin: LinkedIn Profile URL
+        - bio: A short professional summary
+        
+        Return the data ONLY as a raw JSON array of objects. 
+        Do not include any conversational text, markdown blocks, or explanations.
+        
+        Format:
+        [
+          {{"name": "...", "role": "...", "company": "...", "domain": "...", "email": "...", "location": "...", "linkedin": "...", "bio": "..."}}
+        ]
+        """
+        
+        try:
+            # Try OpenRouter
+            if os.getenv("OPENROUTER_API_KEY"):
+                print("📡 Attempting OpenRouter search...")
+                # Using a very capable model for data extraction
+                model_name = "google/gemini-2.0-flash-001"
+                
+                completion = client.chat.completions.create(
+                    model=model_name, 
+                    messages=[{"role": "system", "content": "You are a lead generation assistant that only outputs valid JSON arrays."}, 
+                              {"role": "user", "content": prompt}]
+                )
+                response_text = completion.choices[0].message.content
+                
+                # Robust JSON extraction: Find the first '[' and last ']'
+                start_idx = response_text.find('[')
+                end_idx = response_text.rfind(']') + 1
+                
+                if start_idx != -1 and end_idx != -1:
+                    json_str = response_text[start_idx:end_idx]
+                    try:
+                        ai_leads = json.loads(json_str)
+                        leads = [l for l in ai_leads if l.get('name') and l.get('company')]
+                        print(f"✅ OpenRouter found {len(leads)} valid leads")
+                    except json.JSONDecodeError as je:
+                        print(f"❌ OpenRouter JSON Parse Error: {str(je)}")
+            
+            # Fallback to direct Gemini if still no leads
+            if not leads:
+                print("🌟 Attempting direct Gemini search grounding...")
+                from google.genai import types
+                google_search_tool = types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())
+                response = gemini_client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction="You are a lead generation assistant that only outputs valid JSON arrays.",
+                        tools=[google_search_tool]
+                    )
+                )
+                
+                response_text = response.text
+                start_idx = response_text.find('[')
+                end_idx = response_text.rfind(']') + 1
+                
+                if start_idx != -1 and end_idx != -1:
+                    json_str = response_text[start_idx:end_idx]
+                    try:
+                        ai_leads = json.loads(json_str)
+                        leads = [l for l in ai_leads if l.get('name') and l.get('company')]
+                        print(f"✅ Gemini found {len(leads)} valid leads")
+                    except json.JSONDecodeError:
+                        pass
+        except Exception as e:
+            print(f"❌ AI Search Error: {str(e)}")
+
+    # 3. ENRICH ALL RESULTS (Assign IDs and Verify with Hunter if needed)
+    print(f"📦 Finalizing {len(leads)} leads for frontend...")
+    for lead in leads:
+        if not lead.get('id'):
+            lead['id'] = str(uuid.uuid4())
+        
+        # If lead has no email but has a domain, try Hunter.io
+        if not lead.get('email') and lead.get('domain') and hunter_key and hunter_key != "your_key_here":
+            try:
+                hunter_emails = await get_hunter_emails(lead['domain'])
+                if hunter_emails:
+                    lead['email'] = hunter_emails[0]
+                    lead['verified'] = True
+            except:
+                pass
+        elif lead.get('email'):
+            lead['verified'] = True if '@' in lead['email'] else False
+
+    return leads
+
 @app.post("/generate-email")
 async def generate_email(request: EmailRequest):
-    if not os.getenv("GEMINI_API_KEY") and not os.getenv("OPENROUTER_API_KEY"):
-        raise HTTPException(status_code=500, detail="AI API Key is missing. Please add GEMINI_API_KEY or OPENROUTER_API_KEY to backend/.env")
-    
     prompt = f"""
-    {request.prompt}
-    Lead Name: {request.lead.name}
-    Company: {request.lead.company}
+    Write a highly personalized cold outreach email.
+    Sender: {request.sender_name} from {request.company_name}
+    Lead: {request.lead_name}, {request.lead_role} at {request.lead_company}
+    Goal: Book a meeting (Calendly: {request.calendly_link})
+    
+    Research Info: {request.lead_name} is a {request.lead_role} at {request.lead_company}.
     
     Rules:
-    - DO NOT include a subject line.
-    - DO NOT use placeholders like [Your Name] or [Your Company].
-    - Use "SalesAgent AI" as the company name.
-    - Be professional but friendly.
     - Keep it under 100 words.
-    - Mention their company specifically.
+    - Be conversational, not salesy.
+    - Mention something specific about their role.
     - End with a clear call to action.
     """
-
-    # Try OpenRouter first if key is available
+    
+    # 1. TRY OPENROUTER FIRST (Preferred)
     if os.getenv("OPENROUTER_API_KEY"):
         try:
             completion = client.chat.completions.create(
-                model="google/gemini-2.0-flash-001", # You can change this to any OpenRouter model
-                messages=[
-                    {"role": "system", "content": "You are a senior sales representative."},
-                    {"role": "user", "content": prompt}
-                ],
-                extra_headers={
-                    "HTTP-Referer": "http://localhost:3000",
-                    "X-Title": "SalesAgent AI",
-                }
+                model="google/gemini-2.0-flash-001",
+                messages=[{"role": "user", "content": prompt}]
             )
             return {"content": completion.choices[0].message.content}
-        except Exception as e:
-            print(f"OpenRouter Error: {str(e)}")
-            # Fallback to Gemini if OpenRouter fails and Gemini key exists
-            if not os.getenv("GEMINI_API_KEY"):
-                raise HTTPException(status_code=500, detail=f"OpenRouter Error: {str(e)}")
+        except Exception as or_err:
+            print(f"OpenRouter Email Generation Error: {str(or_err)}")
 
-    # Try Google Gemini directly
+    # 2. FALLBACK TO DIRECT GEMINI
     try:
         response = gemini_client.models.generate_content(
             model='gemini-2.0-flash',

@@ -1,0 +1,30 @@
+🚀 ClosrAI - AI Sales Autopilot
+
+ClosrAI is a 24/7 Virtual Sales Representative that automates prospecting, personalization, and outreach.
+
+🛠 HOW TO TEST THE PLATFORM:
+
+1. START THE BACKEND:
+   - Go to /backend
+   - Run: ./venv/bin/uvicorn main:app --reload --port 8001
+   - Verify: Check http://localhost:8001/ - you should see "online" status.
+
+2. START THE FRONTEND:
+   - Go to /frontend
+   - Run: npm run dev
+   - Open: http://localhost:3000
+
+3. THE TESTING FLOW:
+   - SETTINGS: Go to Settings and save your "Sender Name" and "Calendly Link".
+   - CAMPAIGNS: Create a new campaign with at least 2 steps (Initial + Follow-up).
+   - LEAD DISCOVERY: Go to Search, find leads, select them, and add them to your campaign.
+   - OUTREACH: Go to the Leads page, click a lead to open the AI Drawer.
+   - AI GENERATION: Click "Generate Email" - Gemini AI will write a personalized pitch.
+   - SENDING: Click "Send via Resend" to trigger the actual email delivery.
+
+✨ CORE FEATURES:
+- AI Lead Enrichment & Discovery
+- Gemini 2.0 Personalized Email Generation
+- Multi-step Automated Sequences
+- Sentiment-based Auto-replies (The Closer)
+- Real-time Outreach History Tracking

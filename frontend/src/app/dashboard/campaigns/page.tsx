@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
@@ -29,15 +30,21 @@ interface Campaign {
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [newCampaignName, setNewCampaignName] = useState("");
   const [newSequence, setNewSequence] = useState([
     { step: 1, type: 'email', delay: 0, template: 'Initial outreach' }
   ]);
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  const toggleExpand = (id: string) => {
+    setExpandedCampaign(expandedCampaign === id ? null : id);
+  };
 
   const fetchCampaigns = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -211,9 +218,12 @@ export default function CampaignsPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.05 }}
-            className="neon-card p-6 rounded-[2rem] group"
+            className={`neon-card p-6 rounded-[2rem] group transition-all ${expandedCampaign === campaign.id ? 'border-blue-500/50 ring-1 ring-blue-500/20' : ''}`}
           >
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => toggleExpand(campaign.id)}
+            >
               <div className="flex items-center gap-6">
                 <div className={`p-4 rounded-2xl ${campaign.status === 'active' ? 'bg-blue-500/10 text-blue-400' : 'bg-white/5 text-white/20'}`}>
                   <Play size={24} fill={campaign.status === 'active' ? 'currentColor' : 'none'} />
@@ -239,11 +249,60 @@ export default function CampaignsPage() {
                      <div key={i} className="w-8 h-8 rounded-full border-2 border-black bg-zinc-800" />
                    ))}
                 </div>
-                <button className="p-3 rounded-xl glass hover:bg-white/10 text-white/40 hover:text-white transition-all">
+                <button 
+                  className={`p-3 rounded-xl glass hover:bg-white/10 text-white/40 hover:text-white transition-all ${expandedCampaign === campaign.id ? 'rotate-90 text-blue-400' : ''}`}
+                >
                   <ChevronRight size={20} />
                 </button>
               </div>
             </div>
+
+            <AnimatePresence>
+              {expandedCampaign === campaign.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-white/20 uppercase tracking-widest">Sequence Flow</h4>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/leads?campaign=${campaign.id}`);
+                        }}
+                        className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                      >
+                        View Leads <ChevronRight size={14} />
+                      </button>
+                    </div>
+                    
+                    <div className="grid gap-4">
+                      {campaign.sequence.map((step, idx) => (
+                        <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-4 flex items-start gap-4">
+                          <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">
+                            {step.step}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-1">
+                              <span className="text-sm font-bold text-white/80">Step {step.step}: Email</span>
+                              {step.delay > 0 && (
+                                <span className="text-[10px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full">
+                                  Wait {step.delay} days
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-white/40 truncate italic">"{step.template}"</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="mt-8 pt-6 border-t border-white/5 grid grid-cols-4 gap-4">
                {[

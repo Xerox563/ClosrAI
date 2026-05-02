@@ -10,7 +10,11 @@ import {
   Building2, 
   UserPlus,
   Sparkles,
-  Zap
+  Zap,
+  X,
+  Mail as MailIcon,
+  MapPin,
+  CheckCircle2
 } from "lucide-react";
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
@@ -24,8 +28,10 @@ interface LeadResult {
   company: string;
   email: string;
   location: string;
-  linkedin?: string;
-  enriched: boolean;
+  linkedin: string;
+  bio?: string;
+  enriched?: boolean;
+  verified?: boolean;
 }
 
 export default function LeadSearchPage() {
@@ -36,6 +42,7 @@ export default function LeadSearchPage() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedLeadForPopup, setSelectedLeadForPopup] = useState<LeadResult | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -62,16 +69,30 @@ export default function LeadSearchPage() {
     if (!query) return;
 
     setIsSearching(true);
-    // Mocking lead discovery from Apollo/Hunter
-    setTimeout(() => {
-      const mockResults: LeadResult[] = [
-        { id: '1', name: 'John Walker', role: 'CEO', company: 'TechFlow', email: 'john@techflow.io', location: 'San Francisco, CA', enriched: true, linkedin: '#' },
-        { id: '2', name: 'Sarah Miller', role: 'Head of Growth', company: 'BrightScale', email: 'sarah@brightscale.com', location: 'New York, NY', enriched: true, linkedin: '#' },
-        { id: '3', name: 'Alex Rivera', role: 'Founder', company: 'Nexus AI', email: 'alex@nexus.ai', location: 'Austin, TX', enriched: true, linkedin: '#' },
-      ];
-      setResults(mockResults);
+    setResults([]);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        alert("Your session has expired. Please log out and log back in.");
+        setIsSearching(false);
+        return;
+      }
+
+      const response = await axios.post(`${API_URL}/search-leads`, { query }, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      setResults(response.data);
+    } catch (error: any) {
+      console.error("Search failed", error);
+      if (error.response?.status === 401) {
+        alert("Authentication failed. Please try logging out and in again.");
+      } else {
+        alert("Search failed. Please check your internet connection or try again later.");
+      }
+    } finally {
       setIsSearching(false);
-    }, 1500);
+    }
   };
 
   const toggleLeadSelection = (id: string) => {
@@ -160,18 +181,21 @@ export default function LeadSearchPage() {
                  className={`neon-card p-6 rounded-3xl flex items-center justify-between group cursor-pointer transition-all ${
                    selectedLeads.includes(lead.id) ? 'border-blue-500/50 bg-blue-500/5' : ''
                  }`}
-                 onClick={() => toggleLeadSelection(lead.id)}
+                 onClick={(e) => {
+                    // Only open popup if clicking the name/info area, not the selection circle
+                    setSelectedLeadForPopup(lead);
+                 }}
                >
                  <div className="flex items-center gap-6">
                     <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-xl font-bold text-blue-400 group-hover:scale-110 transition-transform">
-                       {lead.name.charAt(0)}
+                       {lead.name?.charAt(0) || '?'}
                     </div>
                     <div>
-                       <h3 className="font-bold text-lg text-white">{lead.name}</h3>
-                       <p className="text-white/40 text-sm">{lead.role} @ {lead.company}</p>
+                       <h3 className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">{lead.name || 'Unknown Lead'}</h3>
+                       <p className="text-white/40 text-sm">{lead.role || 'No Title'} @ {lead.company || 'Unknown'}</p>
                        <div className="flex gap-3 mt-2">
                           <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold text-white/20">
-                             <Globe size={10} /> {lead.location}
+                             <Globe size={10} /> {lead.location || 'Remote'}
                           </span>
                        </div>
                     </div>
@@ -183,9 +207,15 @@ export default function LeadSearchPage() {
                           <Globe size={16} />
                        </button>
                     </div>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                       selectedLeads.includes(lead.id) ? 'bg-blue-500 border-blue-500' : 'border-white/10'
-                    }`}>
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleLeadSelection(lead.id);
+                      }}
+                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                        selectedLeads.includes(lead.id) ? 'bg-blue-500 border-blue-500' : 'border-white/10'
+                      }`}
+                    >
                        {selectedLeads.includes(lead.id) && <Plus size={14} className="text-white" />}
                     </div>
                  </div>
@@ -259,6 +289,106 @@ export default function LeadSearchPage() {
            </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedLeadForPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedLeadForPopup(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg glass border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
+            >
+              <div className="absolute top-6 right-6 z-10">
+                <button 
+                  onClick={() => setSelectedLeadForPopup(null)}
+                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-10 space-y-8">
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-3xl font-bold text-blue-400">
+                    {selectedLeadForPopup.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{selectedLeadForPopup.name}</h2>
+                    <p className="text-blue-400 font-medium">{selectedLeadForPopup.role}</p>
+                    <p className="text-white/40 text-sm flex items-center gap-1 mt-1">
+                      <Building2 size={14} /> {selectedLeadForPopup.company}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 group hover:border-blue-500/30 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 group-hover:text-blue-400 transition-colors">
+                        <MailIcon size={18} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Email Address</p>
+                          {selectedLeadForPopup.verified && (
+                            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 size={10} /> Verified via Hunter.io
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-white font-medium">{selectedLeadForPopup.email}</p>
+                      </div>
+                    </div>
+
+                  <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 group hover:border-blue-500/30 transition-colors">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 group-hover:text-blue-400 transition-colors">
+                      <MapPin size={18} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Location</p>
+                      <p className="text-white font-medium">{selectedLeadForPopup.location}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-white/20 uppercase tracking-widest px-1">About</h4>
+                  <p className="text-white/60 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5 italic">
+                    "{selectedLeadForPopup.bio || 'Highly skilled professional focused on delivering impact in their field.'}"
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                      if (!selectedLeads.includes(selectedLeadForPopup.id)) {
+                        toggleLeadSelection(selectedLeadForPopup.id);
+                      }
+                      setSelectedLeadForPopup(null);
+                    }}
+                    className="flex-1 py-4 rounded-2xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    Select Lead
+                  </button>
+                  <button 
+                    onClick={() => window.open(selectedLeadForPopup.linkedin, '_blank')}
+                    className="px-6 py-4 rounded-2xl glass hover:bg-white/10 text-white font-bold transition-all"
+                  >
+                    LinkedIn
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

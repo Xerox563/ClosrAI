@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, 
@@ -9,14 +9,15 @@ import {
   MoreHorizontal,
   Mail,
   CheckCircle2,
-  Clock
+  Clock,
+  FilterX
 } from "lucide-react";
 import Papa from "papaparse";
 import { useAppStore } from "@/store/useAppStore";
 import { LeadDrawer } from "@/components/dashboard/LeadDrawer";
 import axios from "axios";
-import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
@@ -27,6 +28,9 @@ export default function LeadsPage() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const campaignFilter = searchParams.get('campaign');
 
   // Fetch leads and campaigns on mount
   useEffect(() => {
@@ -49,7 +53,11 @@ export default function LeadsPage() {
           }
         });
         setCampaigns(campaignsResponse.data);
-        if (campaignsResponse.data.length > 0) {
+        
+        // Set initial selected campaign from URL or first in list
+        if (campaignFilter) {
+          setSelectedCampaignId(campaignFilter);
+        } else if (campaignsResponse.data.length > 0) {
           setSelectedCampaignId(campaignsResponse.data[0].id);
         }
       } catch (error) {
@@ -57,7 +65,7 @@ export default function LeadsPage() {
       }
     };
     fetchData();
-  }, [setLeads, supabase.auth]);
+  }, [setLeads, supabase.auth, campaignFilter]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,20 +109,38 @@ export default function LeadsPage() {
     });
   };
 
-  const filteredLeads = leads.filter(lead => 
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.company.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCampaign = campaignFilter ? lead.campaign_id === campaignFilter : true;
+    
+    return matchesSearch && matchesCampaign;
+  });
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Leads</h1>
-          <p className="text-white/40 text-lg">Manage and track your cold outreach prospects.</p>
+          <p className="text-white/40 text-lg">
+            {campaignFilter 
+              ? `Showing leads for: ${campaigns.find(c => c.id === campaignFilter)?.name || 'Campaign'}` 
+              : 'Manage and track your cold outreach prospects.'}
+          </p>
         </div>
         <div className="flex gap-4">
+          {campaignFilter && (
+            <button 
+              onClick={() => router.push('/dashboard/leads')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl glass hover:bg-white/10 transition-colors text-sm font-medium text-red-400"
+            >
+              <FilterX size={18} />
+              Clear Filter
+            </button>
+          )}
           <select 
             value={selectedCampaignId}
             onChange={(e) => setSelectedCampaignId(e.target.value)}

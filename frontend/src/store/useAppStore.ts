@@ -6,6 +6,7 @@ interface Lead {
   email: string
   company: string
   status: 'New' | 'Emailed' | 'Replied'
+  campaign_id?: string
   created_at: string
 }
 
