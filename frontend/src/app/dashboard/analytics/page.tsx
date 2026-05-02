@@ -18,7 +18,7 @@ import { useMemo, useState, useEffect } from "react";
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002";
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f43f5e'];
 
@@ -35,12 +35,19 @@ export default function AnalyticsPage() {
         
         // Fetch stats for pie chart
         const statsRes = await axios.get(`${API_URL}/analytics/stats`, { headers });
-        const s = statsRes.data;
+        const s = statsRes.data.stats;
+        const funnel = statsRes.data.funnel || [];
+        
+        // Find Replied and Sent from funnel or stats
+        const replied = s.replied_count || 0;
+        const sent = s.emails_sent || 0;
+        const opened = s.opened_count || 0;
+
         setPieData([
-          { name: 'Opened', value: s.opened_count },
-          { name: 'Sent', value: s.emails_sent - s.opened_count - s.replied_count }, // Rest of sent
-          { name: 'Replied', value: s.replied_count },
-          { name: 'Bounced', value: 0 }, // Placeholder for now
+          { name: 'Opened', value: opened },
+          { name: 'Sent', value: Math.max(0, sent - opened - replied) },
+          { name: 'Replied', value: replied },
+          { name: 'Bounced', value: 0 },
         ]);
 
         // Fetch trends for bar chart
@@ -50,7 +57,7 @@ export default function AnalyticsPage() {
         
         // Group by month for this view
         trendsRes.data.forEach((item: any) => {
-          const month = months[new Date(item.created_at).getMonth()];
+          const month = months[new Date(item.sent_at).getMonth()];
           if (!chartMap[month]) chartMap[month] = { name: month, sent: 0, replies: 0 };
           if (item.status === 'sent') chartMap[month].sent++;
           if (item.status === 'replied') chartMap[month].replies++;

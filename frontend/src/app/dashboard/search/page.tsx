@@ -19,7 +19,7 @@ import {
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002";
 
 interface LeadResult {
   id: string;

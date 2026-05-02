@@ -8,7 +8,7 @@ import axios from "axios";
 import confetti from "canvas-confetti";
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002";
 
 export const LeadDrawer = () => {
   const { selectedLead, setSelectedLead, updateLeadStatus } = useAppStore();
@@ -216,7 +216,7 @@ export const LeadDrawer = () => {
                         <span className="text-xs font-bold text-blue-400 uppercase">{item.status}</span>
                         <span className="text-[10px] text-white/20 flex items-center gap-1">
                           <Calendar size={10} />
-                          {new Date(item.created_at).toLocaleDateString()}
+                          {new Date(item.sent_at).toLocaleDateString()}
                         </span>
                       </div>
                       <div className="text-sm font-medium text-white/80">{item.subject}</div>
