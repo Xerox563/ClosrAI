@@ -18,10 +18,11 @@ import { LeadDrawer } from "@/components/dashboard/LeadDrawer";
 import axios from "axios";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002";
 
-export default function LeadsPage() {
+function LeadsContent() {
   const { leads, setLeads, addLead, setSelectedLead } = useAppStore();
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -243,3 +244,12 @@ export default function LeadsPage() {
     </div>
   );
 }
+
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={<div className="p-20 text-center text-white/20">Loading leads...</div>}>
+      <LeadsContent />
+    </Suspense>
+  );
+}
+
